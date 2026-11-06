@@ -1,7 +1,10 @@
 //! Terminal sessions: run a script of the open project in a PTY and stream its output.
 //! Mirrors `src/lib/ipc/terminal.ts`.
 
-use runbook_process::{Session, SessionEvent, SpawnOptions, TerminalSize};
+use std::sync::Arc;
+use std::thread;
+
+use runbook_process::{DEFAULT_GRACE, Session, SessionEvent, SpawnOptions, TerminalSize};
 use serde::Serialize;
 use tauri::State;
 use tauri::ipc::{Channel, InvokeResponseBody};
@@ -68,7 +71,7 @@ pub async fn run_script(
     })?;
 
     let id = state.next_session_id();
-    lock(&state.sessions).insert(id, session);
+    lock(&state.sessions).insert(id, Arc::new(session));
     Ok(id)
 }
 
@@ -79,11 +82,7 @@ pub async fn write_terminal(
     data: String,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
-    let mut sessions = lock(&state.sessions);
-    let session = sessions
-        .get_mut(&id)
-        .ok_or(CommandError::SessionNotFound(id))?;
-    Ok(session.write(data.as_bytes())?)
+    Ok(session(&state, id)?.write(data.as_bytes())?)
 }
 
 /// Propagates a terminal resize to the PTY.
@@ -94,15 +93,50 @@ pub async fn resize_terminal(
     rows: u16,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
-    let sessions = lock(&state.sessions);
-    let session = sessions.get(&id).ok_or(CommandError::SessionNotFound(id))?;
-    Ok(session.resize(TerminalSize { rows, cols })?)
+    Ok(session(&state, id)?.resize(TerminalSize { rows, cols })?)
 }
 
-/// Stops the session's script (if still running) and forgets the session.
+/// Stops the script and its whole process tree; the session stays so its output remains
+/// visible. Resolves once everything has exited (at most the grace period plus a short
+/// kill wait). The exit event is delivered on the session's `on_exit` channel as usual.
+#[tauri::command]
+pub async fn stop_terminal(id: SessionId, state: State<'_, AppState>) -> Result<(), CommandError> {
+    let session = session(&state, id)?;
+    stop_off_thread(session).await;
+    Ok(())
+}
+
+/// Stops the script (if still running) and forgets the session.
 #[tauri::command]
 pub async fn close_terminal(id: SessionId, state: State<'_, AppState>) -> Result<(), CommandError> {
-    // Dropping the session kills its child; see `Session::drop`.
-    lock(&state.sessions).remove(&id);
+    let removed = lock(&state.sessions).remove(&id);
+    if let Some(session) = removed {
+        stop_off_thread(session).await;
+    }
     Ok(())
+}
+
+/// Stops every session in parallel and waits for all of them. Used when the app exits.
+pub fn stop_all(state: &AppState) {
+    let sessions: Vec<Arc<Session>> = lock(&state.sessions).drain().map(|(_, s)| s).collect();
+    let stoppers: Vec<_> = sessions
+        .into_iter()
+        .map(|session| thread::spawn(move || session.stop(DEFAULT_GRACE)))
+        .collect();
+    for stopper in stoppers {
+        let _ = stopper.join();
+    }
+}
+
+/// Clones the session out of the map so no lock is held while it is used.
+fn session(state: &AppState, id: SessionId) -> Result<Arc<Session>, CommandError> {
+    lock(&state.sessions)
+        .get(&id)
+        .cloned()
+        .ok_or(CommandError::SessionNotFound(id))
+}
+
+/// `Session::stop` blocks for up to the grace period, so it runs on the blocking pool.
+async fn stop_off_thread(session: Arc<Session>) {
+    let _ = tauri::async_runtime::spawn_blocking(move || session.stop(DEFAULT_GRACE)).await;
 }

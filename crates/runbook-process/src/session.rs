@@ -10,13 +10,16 @@
 //! - forwarder: coalesces queued output into batches and delivers [`SessionEvent`]s, so the
 //!   callback runs on one thread, in order, with exit delivered last (after the reader hit
 //!   end of stream, so no output is lost).
+//!
+//! Stopping the script and its process tree is in `stop.rs`.
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread;
+use std::time::Duration;
 
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 
@@ -89,12 +92,44 @@ enum Message {
 /// exits (needed on Windows, see `forward`). `None` once closed.
 type SharedMaster = Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>;
 
-/// A running (or finished) script attached to a PTY.
+/// Set by the waiter thread when the direct child has exited; lets `stop` wait for that
+/// event instead of polling.
+#[derive(Default)]
+pub(crate) struct ExitSignal {
+    exited: Mutex<bool>,
+    changed: Condvar,
+}
+
+impl ExitSignal {
+    fn set(&self) {
+        *lock(&self.exited) = true;
+        self.changed.notify_all();
+    }
+
+    pub(crate) fn is_set(&self) -> bool {
+        *lock(&self.exited)
+    }
+
+    /// Waits until the child exited or `timeout` passed; returns whether it exited.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub(crate) fn wait(&self, timeout: Duration) -> bool {
+        let guard = lock(&self.exited);
+        let (guard, _) = self
+            .changed
+            .wait_timeout_while(guard, timeout, |exited| !*exited)
+            .unwrap_or_else(PoisonError::into_inner);
+        *guard
+    }
+}
+
+/// A running (or finished) script attached to a PTY. Methods take `&self`, so a session can
+/// be shared (e.g. in an `Arc`) and stopped while other calls go on.
 pub struct Session {
     master: SharedMaster,
-    writer: Box<dyn Write + Send>,
-    killer: Box<dyn ChildKiller + Send + Sync>,
-    pid: Option<u32>,
+    writer: Mutex<Box<dyn Write + Send>>,
+    killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
+    pub(crate) pid: Option<u32>,
+    pub(crate) exit: Arc<ExitSignal>,
 }
 
 impl Session {
@@ -142,10 +177,12 @@ impl Session {
             .map_err(|err| SessionError::Io(err.to_string()))?;
         let killer = child.clone_killer();
         let pid = child.process_id();
+        let exit = Arc::new(ExitSignal::default());
 
         let (tx, rx) = mpsc::channel();
         spawn_reader(reader, tx.clone());
         let waiter_tx = tx;
+        let waiter_exit = Arc::clone(&exit);
         thread::spawn(move || {
             let info = match child.wait() {
                 Ok(status) => ExitInfo {
@@ -157,6 +194,7 @@ impl Session {
                     signal: None,
                 },
             };
+            waiter_exit.set();
             let _ = waiter_tx.send(Message::Exited(info));
         });
         let master: SharedMaster = Arc::new(Mutex::new(Some(pair.master)));
@@ -165,9 +203,10 @@ impl Session {
 
         Ok(Self {
             master,
-            writer,
-            killer,
+            writer: Mutex::new(writer),
+            killer: Mutex::new(killer),
             pid,
+            exit,
         })
     }
 
@@ -176,19 +215,24 @@ impl Session {
         self.pid
     }
 
+    /// Whether the script's direct child has exited.
+    pub fn has_exited(&self) -> bool {
+        self.exit.is_set()
+    }
+
     /// Sends keyboard input (already encoded by the terminal, e.g. `\r`, `\x03`).
-    pub fn write(&mut self, data: &[u8]) -> Result<(), SessionError> {
-        self.writer
+    pub fn write(&self, data: &[u8]) -> Result<(), SessionError> {
+        let mut writer = lock(&self.writer);
+        writer
             .write_all(data)
-            .and_then(|()| self.writer.flush())
+            .and_then(|()| writer.flush())
             .map_err(|err| SessionError::Io(err.to_string()))
     }
 
     /// Tells the PTY, and through it the program, the new terminal size. Does nothing once
     /// the terminal has been closed after the script ended.
     pub fn resize(&self, size: TerminalSize) -> Result<(), SessionError> {
-        let master = self.master.lock().unwrap_or_else(PoisonError::into_inner);
-        match master.as_ref() {
+        match lock(&self.master).as_ref() {
             Some(master) => master
                 .resize(size.into())
                 .map_err(|err| SessionError::Io(err.to_string())),
@@ -196,25 +240,25 @@ impl Session {
         }
     }
 
-    /// Asks the direct child to stop.
-    ///
-    /// Linux/macOS: portable-pty sends SIGHUP to the child only. Most tools forward the
-    /// hangup or exit and take their children with them, but not all do; terminating the
-    /// whole process tree reliably is milestone M4.
-    /// Windows: TerminateProcess on the child.
-    pub fn kill(&mut self) -> Result<(), SessionError> {
-        self.killer
-            .kill()
-            .map_err(|err| SessionError::Io(err.to_string()))
+    /// Terminates the direct child only (portable-pty: SIGHUP on Unix, TerminateProcess on
+    /// Windows). Last resort when the pid is unknown; `stop` handles the whole tree.
+    pub(crate) fn kill_child(&self) {
+        let _ = lock(&self.killer).kill();
     }
 }
 
 impl Drop for Session {
     fn drop(&mut self) {
-        // Best effort: a dropped session must not leave its script running. The master is
-        // closed right after, which on Unix hangs up the PTY for the whole session too.
-        let _ = self.killer.kill();
+        // A session dropped while its script still runs must not leave processes behind.
+        // `stop` is the graceful path; this is the immediate fallback.
+        if !self.exit.is_set() {
+            self.kill_tree_now();
+        }
     }
+}
+
+pub(crate) fn lock<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 fn spawn_reader(mut reader: Box<dyn Read + Send>, tx: Sender<Message>) {
@@ -278,7 +322,7 @@ fn forward(rx: Receiver<Message>, mut on_event: impl FnMut(SessionEvent), master
 /// which flushes pending output to the reader and then closes the pipe.
 fn close_terminal_after_exit(master: &SharedMaster) {
     if cfg!(windows) {
-        let closed = master.lock().unwrap_or_else(PoisonError::into_inner).take();
+        let closed = lock(master).take();
         drop(closed);
     }
 }

@@ -2675,6 +2675,7 @@ dependencies = [
 name = "runbook-process"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "portable-pty",
  "tempfile",
  "thiserror 2.0.21",

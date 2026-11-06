@@ -35,6 +35,7 @@ pub fn run() {
             terminal::run_script,
             terminal::write_terminal,
             terminal::resize_terminal,
+            terminal::stop_terminal,
             terminal::close_terminal,
         ])
         .build(tauri::generate_context!())
@@ -43,8 +44,8 @@ pub fn run() {
 
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
-            // Dropping every session stops its script before the process exits.
-            lock(&handle.state::<AppState>().sessions).clear();
+            // Stop every script and its process tree before the app process exits.
+            terminal::stop_all(&handle.state::<AppState>());
         }
     });
 }
