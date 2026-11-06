@@ -1,0 +1,25 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f7f7f8;
+  --text: #1c1c1f;
+  --text-muted: #6b6b73;
+  font-family: system-ui, -apple-system, "Segoe UI", Ubuntu, Cantarell, sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #18181b;
+    --text: #ececef;
+    --text-muted: #9a9aa3;
+  }
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}

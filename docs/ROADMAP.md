@@ -9,7 +9,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 
 | Milestone              | Linux | macOS | Windows |
 | ---------------------- | ----- | ----- | ------- |
-| M0 Skeleton            | ⏳    | ⏳    | ⏳      |
+| M0 Skeleton            | 🚧    | 🚧    | 🚧      |
 | M1 Discovery           | ⏳    | ⏳    | ⏳      |
 | M2 Monorepo workspaces | ⏳    | ⏳    | ⏳      |
 | M3 One terminal        | ⏳    | ⏳    | ⏳      |

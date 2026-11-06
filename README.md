@@ -19,12 +19,10 @@ per-platform status.
 
 ## Development setup
 
-The commands below become available with milestone M0.
-
 ### Prerequisites
 
 - Rust (stable) via [rustup](https://rustup.rs)
-- Node.js 20+ and pnpm 9+
+- Node.js 20.19+ and pnpm 9+
 - Platform dependencies for Tauri 2:
 
 **Linux (Debian/Ubuntu and derivatives)**
@@ -52,12 +50,18 @@ pnpm tauri dev
 ### Checks (same as CI)
 
 ```sh
+pnpm check
+pnpm build
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-pnpm check
-pnpm build
 ```
+
+### App icon
+
+The source icon is `src-tauri/icons/icon.svg`. Regenerate the platform icons with
+`pnpm tauri icon src-tauri/icons/icon.svg`, then delete the generated `android/`, `ios/`
+and `Square*`/`StoreLogo` files: Runbook only ships desktop builds.
 
 ## Working on Runbook
 

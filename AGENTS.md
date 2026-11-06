@@ -138,5 +138,7 @@ Runbook competes with IDEs on RAM, so resource use is a feature:
   `WEBKIT_DISABLE_DMABUF_RENDERER=1`; document any such workaround where it is applied.
 - **xterm.js** is published as `@xterm/xterm` and `@xterm/addon-*`; the unscoped `xterm`
   package is deprecated.
+- **TypeScript stays on 6.x** until `svelte-check` supports TypeScript 7 (its peer range is
+  `^5 || ^6`).
 - **`serde_yaml` is unmaintained**; the YAML crate for `pnpm-workspace.yaml` is chosen in M2
   with an ADR.
