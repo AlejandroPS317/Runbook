@@ -1,0 +1,6 @@
+{
+  "name": "edge-cases",
+  "scripts": {
+    "hello": "echo hello"
+  }
+}
