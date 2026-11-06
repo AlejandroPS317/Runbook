@@ -1,0 +1,10 @@
+[package]
+name = "runbook-core"
+description = "Project discovery, package.json parsing and workspace resolution for Runbook"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]

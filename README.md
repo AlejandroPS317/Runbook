@@ -19,12 +19,10 @@ per-platform status.
 
 ## Development setup
 
-The commands below become available with milestone M0.
-
 ### Prerequisites
 
 - Rust (stable) via [rustup](https://rustup.rs)
-- Node.js 20+ and pnpm 9+
+- Node.js 20.19+ and pnpm 9+
 - Platform dependencies for Tauri 2:
 
 **Linux (Debian/Ubuntu and derivatives)**
@@ -52,12 +50,51 @@ pnpm tauri dev
 ### Checks (same as CI)
 
 ```sh
+pnpm check
+pnpm build
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-pnpm check
-pnpm build
 ```
+
+### App icon
+
+The source icon is `src-tauri/icons/icon.svg`. Regenerate the platform icons with
+`pnpm tauri icon src-tauri/icons/icon.svg`, then delete the generated `android/`, `ios/`
+and `Square*`/`StoreLogo` files: Runbook only ships desktop builds.
+
+## Troubleshooting
+
+### Linux: the window opens but stays blank or black
+
+WebKitGTK 2.52 (the system webview Tauri uses on Linux) hangs before painting anything
+when the OpenDyslexic WOFF fonts from the `fonts-opendyslexic` package are installed;
+Zorin OS ships them by default. Every WebKitGTK app is affected, not only Runbook. To
+check, see whether `fc-list | grep /usr/share/fonts/woff/` prints anything.
+
+Fix without `sudo` by hiding only those files from fontconfig (the OTF version of
+OpenDyslexic stays available):
+
+```sh
+mkdir -p ~/.config/fontconfig/conf.d
+cat > ~/.config/fontconfig/conf.d/50-reject-woff.conf <<'EOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <selectfont>
+    <rejectfont>
+      <glob>/usr/share/fonts/woff/*</glob>
+    </rejectfont>
+  </selectfont>
+</fontconfig>
+EOF
+```
+
+Alternatively, remove the package: `sudo apt remove fonts-opendyslexic`.
+
+If fonts are not the cause and you have an NVIDIA GPU, try
+`WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm tauri dev`. See also
+[Tauri's Linux graphics notes](https://v2.tauri.app/develop/debug/linux-graphics/).
 
 ## Working on Runbook
 
