@@ -144,6 +144,11 @@ mod tests {
 
     #[test]
     fn login_environment_has_a_path() {
-        assert!(login_environment().contains_key("PATH"));
+        // Windows spells it `Path`; variable names are case-insensitive there.
+        assert!(
+            login_environment()
+                .keys()
+                .any(|key| key.eq_ignore_ascii_case("PATH"))
+        );
     }
 }

@@ -27,13 +27,15 @@ jobs:
       # Tauri on Linux renders through WebKitGTK; macOS and Windows use the system webview.
       # man-db triggers re-index manuals for every installed package and can stall the
       # step for many minutes on GitHub's Ubuntu images, so they are disabled first.
+      # Mirrors occasionally stall; retries with a per-connection timeout recover from that.
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           sudo rm -f /var/lib/man-db/auto-update
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          apt_opts="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get $apt_opts update
+          sudo apt-get $apt_opts install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev
 
       - uses: dtolnay/rust-toolchain@stable
