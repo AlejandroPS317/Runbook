@@ -4,10 +4,13 @@
 //! directories by name, and honors `.gitignore` files inside the project. Symlinks are not
 //! followed, which also protects against link cycles.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
 use ignore::{DirEntry, WalkBuilder, WalkState};
+
+use crate::paths;
 
 const MANIFEST_FILE: &str = "package.json";
 
@@ -50,9 +53,12 @@ enum Found {
 }
 
 /// Walks `root` and collects every `package.json` outside skipped directories.
-pub fn find_manifests(root: &Path) -> WalkOutput {
+///
+/// `explicit_dirs` are `/`-separated folders relative to `root` that are searched even when
+/// their name is in the skip list, because a workspace pattern names them literally.
+pub fn find_manifests(root: &Path, explicit_dirs: HashSet<String>) -> WalkOutput {
     let (tx, rx) = mpsc::channel();
-    builder(root).build_parallel().run(|| {
+    builder(root, explicit_dirs).build_parallel().run(|| {
         let tx = tx.clone();
         Box::new(move |entry| {
             let found = match entry {
@@ -82,7 +88,8 @@ pub fn find_manifests(root: &Path) -> WalkOutput {
     output
 }
 
-fn builder(root: &Path) -> WalkBuilder {
+fn builder(root: &Path, explicit_dirs: HashSet<String>) -> WalkBuilder {
+    let root_for_filter = root.to_path_buf();
     let mut builder = WalkBuilder::new(root);
     builder
         // Start from no filters, then enable only the project's own git ignore rules:
@@ -92,7 +99,10 @@ fn builder(root: &Path) -> WalkBuilder {
         .git_ignore(true)
         .git_exclude(true)
         .follow_links(false)
-        .filter_entry(|entry| !is_skipped_dir(entry));
+        .filter_entry(move |entry| {
+            !is_skipped_dir(entry)
+                || explicit_dirs.contains(&paths::relative(&root_for_filter, entry.path()))
+        });
     builder
 }
 

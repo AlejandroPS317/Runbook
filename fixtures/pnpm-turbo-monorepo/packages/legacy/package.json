@@ -1,0 +1,7 @@
+{
+  "name": "@acme/legacy",
+  "private": true,
+  "scripts": {
+    "build": "tsc"
+  }
+}

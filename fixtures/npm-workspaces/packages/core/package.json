@@ -1,0 +1,9 @@
+{
+  "name": "@npmws/core",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "test": "node --test"
+  }
+}

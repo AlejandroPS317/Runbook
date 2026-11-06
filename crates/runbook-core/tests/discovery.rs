@@ -43,7 +43,15 @@ fn monorepo_lists_every_package_root_first() {
     let discovery = discover(&fixture("pnpm-turbo-monorepo")).unwrap();
     assert_eq!(
         dirs(&discovery),
-        ["", "apps/api", "apps/web", "packages/config", "packages/ui"]
+        [
+            "",
+            "apps/api",
+            "apps/web",
+            "examples/demo",
+            "packages/config",
+            "packages/legacy",
+            "packages/ui"
+        ]
     );
     assert!(discovery.problems.is_empty(), "{:?}", discovery.problems);
 }

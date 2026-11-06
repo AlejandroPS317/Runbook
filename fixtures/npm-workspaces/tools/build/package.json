@@ -1,0 +1,7 @@
+{
+  "name": "@npmws/build-tools",
+  "private": true,
+  "scripts": {
+    "bundle": "esbuild src/index.ts --bundle"
+  }
+}

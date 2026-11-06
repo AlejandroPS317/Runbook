@@ -1,0 +1,13 @@
+{
+  "name": "npm-workspaces",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "tools/build"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm test --workspaces --if-present",
+    "dev:core": "npm run dev -w @npmws/core"
+  }
+}
