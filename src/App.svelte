@@ -1,24 +1,13 @@
-<main>
-  <h1>Runbook</h1>
-  <p>Run package.json scripts without opening an IDE.</p>
-</main>
+<script lang="ts">
+  import Home from "./lib/components/Home.svelte";
+  import ProjectView from "./lib/components/ProjectView.svelte";
+  import type { Project } from "./lib/ipc/types";
 
-<style>
-  main {
-    display: grid;
-    place-content: center;
-    height: 100%;
-    text-align: center;
-  }
+  let project = $state<Project | null>(null);
+</script>
 
-  h1 {
-    margin: 0;
-    font-size: 1.75rem;
-    font-weight: 600;
-  }
-
-  p {
-    margin: 0.5rem 0 0;
-    color: var(--text-muted);
-  }
-</style>
+{#if project}
+  <ProjectView {project} onClose={() => (project = null)} />
+{:else}
+  <Home onOpen={(opened) => (project = opened)} />
+{/if}

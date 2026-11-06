@@ -15,13 +15,23 @@ processes, and stopping a script must stop the whole tree on every platform.
 
 ## Spawning
 
+Implemented in `crates/runbook-process` (M3):
+
 - Spawn through `portable-pty` (`native_pty_system()`), which uses a Unix PTY on Linux and
-  macOS and ConPTY on Windows.
+  macOS and ConPTY on Windows (`session.rs`).
 - Build the command from argv: package manager binary, `run`, script name, extra args.
+  `src-tauri/src/terminal.rs` only accepts scripts that exist in the open project.
 - Set `cwd` to the directory of the script's `package.json`.
-- Use the environment resolved from the user's login shell (see AGENTS.md pitfalls).
-- Read the PTY on a dedicated blocking thread; forward output in batches to the frontend
-  through a Tauri `Channel`.
+- Use the environment of the user's login shell (`env.rs`): Linux/macOS run
+  `$SHELL -l -i -c` once and read `env -0` between markers, with a 10 s deadline and a
+  fallback to the app's own environment; Windows uses the app's environment.
+- Read the PTY on a dedicated blocking thread; a forwarder thread coalesces queued output
+  (up to 64 KiB) and sends it to the frontend as raw bytes through a Tauri `Channel`.
+  The exit event is always last: on Unix it waits for the reader to hit EOF; on Windows
+  ConPTY keeps the pipe open, so it is sent as soon as the child exits.
+
+Until M4, stopping a session uses `portable-pty`'s killer: SIGHUP to the direct child on
+Unix, TerminateProcess on Windows. That is not a reliable tree kill.
 
 ## Stopping, per platform
 
