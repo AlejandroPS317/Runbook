@@ -1,0 +1,7 @@
+{
+  "name": "acme-demo",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  }
+}

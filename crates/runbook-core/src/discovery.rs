@@ -1,14 +1,29 @@
-//! Project discovery: every `package.json` under a folder, with its scripts.
+//! Project discovery: every `package.json` under a folder, with its scripts, grouped by
+//! package and classified against the root's workspace definition.
 //!
-//! Discovery never stops at a bad file. Unreadable or malformed manifests become
-//! [`Problem`]s next to the packages that were read successfully.
+//! Discovery never stops at a bad file. Unreadable or malformed files become [`Problem`]s
+//! next to the packages that were read successfully.
 
-use std::cmp::Ordering;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::manifest::{ManifestIssue, Script, parse_manifest};
+use crate::package_manager::PackageManager;
+use crate::paths;
+use crate::root_config;
 use crate::walk::find_manifests;
+use crate::workspace::{WorkspaceIssue, WorkspaceMatcher, Workspaces};
+
+/// How a package relates to the project root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageRole {
+    /// The `package.json` of the opened folder.
+    Root,
+    /// Declared by the root's workspace patterns.
+    Member,
+    /// Found on disk but not declared as a workspace (or the root declares none).
+    Unlisted,
+}
 
 /// A folder with a usable `package.json`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +36,7 @@ pub struct Package {
     pub name: Option<String>,
     /// Scripts in file order.
     pub scripts: Vec<Script>,
+    pub role: PackageRole,
 }
 
 /// Something that went wrong for one path. The rest of the project is still discovered.
@@ -39,6 +55,13 @@ pub enum ProblemKind {
     Walk(String),
     #[error(transparent)]
     Manifest(#[from] ManifestIssue),
+    #[error(transparent)]
+    Workspace(#[from] WorkspaceIssue),
+    #[error("package manager \"{name}\" is not supported yet; using {fallback}")]
+    UnsupportedPackageManager {
+        name: String,
+        fallback: PackageManager,
+    },
 }
 
 /// Everything found under a project folder.
@@ -46,6 +69,10 @@ pub enum ProblemKind {
 pub struct Discovery {
     /// Absolute path of the folder that was opened.
     pub root: PathBuf,
+    /// The manager that runs this project's scripts.
+    pub package_manager: PackageManager,
+    /// The root's workspace patterns, when it declares any.
+    pub workspaces: Option<Workspaces>,
     /// Packages sorted by `relative_dir`, root first.
     pub packages: Vec<Package>,
     /// Problems sorted by `relative_path`.
@@ -67,24 +94,23 @@ pub enum DiscoveryError {
     },
 }
 
-/// Finds every `package.json` under `root` and reads its scripts.
+/// Finds every `package.json` under `root`, reads its scripts and classifies it against the
+/// root's workspaces.
 pub fn discover(root: &Path) -> Result<Discovery, DiscoveryError> {
     let root = open_root(root)?;
-    let walked = find_manifests(&root);
+    let config = root_config::read(&root);
+    let walked = find_manifests(&root, config.matcher.explicit_dirs().clone());
+
+    let mut problems = config.problems;
+    problems.extend(walked.errors.into_iter().map(|(path, message)| Problem {
+        relative_path: path.map(|p| paths::relative(&root, &p)).unwrap_or_default(),
+        kind: ProblemKind::Walk(message),
+    }));
 
     let mut packages = Vec::new();
-    let mut problems: Vec<Problem> = walked
-        .errors
-        .into_iter()
-        .map(|(path, message)| Problem {
-            relative_path: path.map(|p| relative(&root, &p)).unwrap_or_default(),
-            kind: ProblemKind::Walk(message),
-        })
-        .collect();
-
     for manifest_path in walked.manifests {
-        let relative_path = relative(&root, &manifest_path);
-        match read_package(&root, &manifest_path) {
+        let relative_path = paths::relative(&root, &manifest_path);
+        match read_package(&root, &manifest_path, &config.matcher) {
             Ok((package, issues)) => {
                 problems.extend(issues.into_iter().map(|issue| Problem {
                     relative_path: relative_path.clone(),
@@ -99,10 +125,12 @@ pub fn discover(root: &Path) -> Result<Discovery, DiscoveryError> {
         }
     }
 
-    packages.sort_by(|a, b| compare_paths(&a.relative_dir, &b.relative_dir));
-    problems.sort_by(|a, b| compare_paths(&a.relative_path, &b.relative_path));
+    packages.sort_by(|a, b| paths::compare(&a.relative_dir, &b.relative_dir));
+    problems.sort_by(|a, b| paths::compare(&a.relative_path, &b.relative_path));
     Ok(Discovery {
         root,
+        package_manager: config.package_manager,
+        workspaces: config.workspaces,
         packages,
         problems,
     })
@@ -126,6 +154,7 @@ fn open_root(root: &Path) -> Result<PathBuf, DiscoveryError> {
 fn read_package(
     root: &Path,
     manifest_path: &Path,
+    matcher: &WorkspaceMatcher,
 ) -> Result<(Package, Vec<ManifestIssue>), ProblemKind> {
     let text = std::fs::read_to_string(manifest_path)
         .map_err(|err| ProblemKind::Unreadable(err.to_string()))?;
@@ -133,54 +162,20 @@ fn read_package(
     let dir = manifest_path
         .parent()
         .map_or_else(|| root.to_path_buf(), Path::to_path_buf);
+    let relative_dir = paths::relative(root, &dir);
+    let role = if relative_dir.is_empty() {
+        PackageRole::Root
+    } else if matcher.is_member(&relative_dir) {
+        PackageRole::Member
+    } else {
+        PackageRole::Unlisted
+    };
     let package = Package {
-        relative_dir: relative(root, &dir),
+        relative_dir,
         dir,
         name: parsed.manifest.name,
         scripts: parsed.manifest.scripts,
+        role,
     };
     Ok((package, parsed.issues))
-}
-
-/// `path` relative to `root`, joined with `/` so results match across operating systems.
-fn relative(root: &Path, path: &Path) -> String {
-    let relative = path.strip_prefix(root).unwrap_or(path);
-    relative
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-/// Orders paths component by component, so a folder's children follow the folder itself.
-/// The root (`""`) sorts first because its only component is the empty string.
-fn compare_paths(a: &str, b: &str) -> Ordering {
-    a.split('/').cmp(b.split('/'))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn root_sorts_before_everything() {
-        assert_eq!(compare_paths("", "apps/web"), Ordering::Less);
-        assert_eq!(compare_paths("apps/web", ""), Ordering::Greater);
-        assert_eq!(compare_paths("", ""), Ordering::Equal);
-    }
-
-    #[test]
-    fn children_follow_their_parent() {
-        let mut dirs = vec!["apps/web-admin", "apps/web/sub", "apps/web", "apps"];
-        dirs.sort_by(|a, b| compare_paths(a, b));
-        assert_eq!(dirs, ["apps", "apps/web", "apps/web/sub", "apps/web-admin"]);
-    }
-
-    #[test]
-    fn relative_uses_forward_slashes() {
-        let root = Path::new("/project");
-        let path = root.join("apps").join("web");
-        assert_eq!(relative(root, &path), "apps/web");
-        assert_eq!(relative(root, root), "");
-    }
 }

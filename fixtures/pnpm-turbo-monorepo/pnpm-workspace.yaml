@@ -1,3 +1,17 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # Kept on disk for reference, not part of the workspace.
+  - "!packages/legacy"
+
+# Shared dependency versions (pnpm catalog), like the real monorepo.
+catalog:
+  typescript: ^5.7.2
+  turbo: ^2.3.3
+  "@types/node": ^20.19.0
+  vite: ^8.0.6
+
+catalogs:
+  ui:
+    react: ^19.2.4
+    "@tanstack/react-query": ^5.62.8

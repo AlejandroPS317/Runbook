@@ -19,6 +19,10 @@ pub struct Manifest {
     pub name: Option<String>,
     /// Scripts in the order they appear in the file.
     pub scripts: Vec<Script>,
+    /// The `packageManager` field (e.g. `pnpm@9.15.4`), when it is a string.
+    pub package_manager: Option<String>,
+    /// npm workspace patterns, from `"workspaces": [...]` or `"workspaces": {"packages": [...]}`.
+    pub workspaces: Option<Vec<String>>,
 }
 
 /// A defect found while reading a `package.json`.
@@ -32,6 +36,8 @@ pub enum ManifestIssue {
     ScriptsNotAnObject,
     #[error("script \"{0}\" is not a string and was skipped")]
     NonStringScript(String),
+    #[error("\"workspaces\" must be a list of strings or an object with a \"packages\" list")]
+    InvalidWorkspaces,
 }
 
 /// A manifest that could be read, plus the non-fatal issues found in it.
@@ -53,15 +59,33 @@ pub fn parse_manifest(text: &str) -> Result<ParsedManifest, ManifestIssue> {
         return Err(ManifestIssue::NotAnObject);
     };
 
+    let string_field = |key: &str| fields.get(key).and_then(Value::as_str).map(str::to_owned);
     let mut issues = Vec::new();
     let manifest = Manifest {
-        name: fields
-            .get("name")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
+        name: string_field("name"),
         scripts: read_scripts(fields.get("scripts"), &mut issues),
+        package_manager: string_field("packageManager"),
+        workspaces: read_workspaces(fields.get("workspaces"), &mut issues),
     };
     Ok(ParsedManifest { manifest, issues })
+}
+
+fn read_workspaces(value: Option<&Value>, issues: &mut Vec<ManifestIssue>) -> Option<Vec<String>> {
+    let list = match value? {
+        Value::Array(list) => Some(list),
+        // Object form, used by Yarn 1 and accepted by npm: {"packages": [...], "nohoist": [...]}.
+        Value::Object(object) => object.get("packages").and_then(Value::as_array),
+        _ => None,
+    };
+    let patterns: Option<Vec<String>> = list.and_then(|list| {
+        list.iter()
+            .map(|item| item.as_str().map(str::to_owned))
+            .collect()
+    });
+    if patterns.is_none() {
+        issues.push(ManifestIssue::InvalidWorkspaces);
+    }
+    patterns
 }
 
 fn read_scripts(value: Option<&Value>, issues: &mut Vec<ManifestIssue>) -> Vec<Script> {
@@ -172,6 +196,46 @@ mod tests {
         assert_eq!(parsed.manifest.name.as_deref(), Some("x"));
         assert!(parsed.manifest.scripts.is_empty());
         assert_eq!(parsed.issues, [ManifestIssue::ScriptsNotAnObject]);
+    }
+
+    #[test]
+    fn reads_package_manager() {
+        let parsed = parse_manifest(r#"{"packageManager": "pnpm@9.15.4"}"#).unwrap();
+        assert_eq!(
+            parsed.manifest.package_manager.as_deref(),
+            Some("pnpm@9.15.4")
+        );
+    }
+
+    #[test]
+    fn reads_workspaces_array_form() {
+        let parsed = parse_manifest(r#"{"workspaces": ["packages/*", "apps/web"]}"#).unwrap();
+        assert_eq!(
+            parsed.manifest.workspaces,
+            Some(vec!["packages/*".into(), "apps/web".into()])
+        );
+        assert!(parsed.issues.is_empty());
+    }
+
+    #[test]
+    fn reads_workspaces_object_form() {
+        let parsed =
+            parse_manifest(r#"{"workspaces": {"packages": ["packages/*"], "nohoist": ["**"]}}"#)
+                .unwrap();
+        assert_eq!(parsed.manifest.workspaces, Some(vec!["packages/*".into()]));
+    }
+
+    #[test]
+    fn invalid_workspaces_are_reported() {
+        for text in [
+            r#"{"workspaces": "packages/*"}"#,
+            r#"{"workspaces": ["packages/*", 3]}"#,
+            r#"{"workspaces": {"nohoist": ["**"]}}"#,
+        ] {
+            let parsed = parse_manifest(text).unwrap();
+            assert_eq!(parsed.manifest.workspaces, None, "{text}");
+            assert_eq!(parsed.issues, [ManifestIssue::InvalidWorkspaces], "{text}");
+        }
     }
 
     #[test]

@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Instant;
 
+use runbook_core::PackageRole;
+
 fn main() -> ExitCode {
     let Some(root) = std::env::args_os().nth(1).map(PathBuf::from) else {
         eprintln!("usage: discover <folder>");
@@ -22,6 +24,15 @@ fn main() -> ExitCode {
     };
     let elapsed = started.elapsed();
 
+    println!("package manager: {}", discovery.package_manager);
+    match &discovery.workspaces {
+        Some(workspaces) => println!(
+            "workspaces ({:?}): {}",
+            workspaces.source,
+            workspaces.patterns.join(", ")
+        ),
+        None => println!("workspaces: none"),
+    }
     for package in &discovery.packages {
         let dir = if package.relative_dir.is_empty() {
             "."
@@ -29,7 +40,12 @@ fn main() -> ExitCode {
             &package.relative_dir
         };
         let name = package.name.as_deref().unwrap_or("(no name)");
-        println!("{dir}  {name}");
+        let role = match package.role {
+            PackageRole::Root => "root",
+            PackageRole::Member => "member",
+            PackageRole::Unlisted => "unlisted",
+        };
+        println!("{dir}  {name}  [{role}]");
         for script in &package.scripts {
             println!("    {:<20} {}", script.name, script.command);
         }

@@ -1,0 +1,6 @@
+{
+  "name": "decoy-build-output",
+  "scripts": {
+    "must-not-appear": "echo build output must be skipped"
+  }
+}

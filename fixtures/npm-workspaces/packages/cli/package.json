@@ -1,0 +1,8 @@
+{
+  "name": "@npmws/cli",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js"
+  }
+}
