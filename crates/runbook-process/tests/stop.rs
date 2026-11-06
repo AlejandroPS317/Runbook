@@ -25,10 +25,13 @@ mod unix {
     /// SIGTERM and SIGHUP (so only SIGKILL stops it; SIGHUP too, because the kernel hangs up
     /// the terminal's foreground group when the session leader dies). `perl` provides
     /// setsid portably (Linux and macOS).
+    /// The setsid process records its own pid only after setsid(), and "ready" is printed
+    /// once all three pids are recorded, so the test never inspects a half-started tree.
     const TREE: &str = r#"
 sleep 300 & echo $! >> pids
-perl -e 'use POSIX qw(setsid); setsid(); sleep 300' & echo $! >> pids
 sh -c 'trap "" TERM HUP; sleep 300' & echo $! >> pids
+perl -e 'use POSIX qw(setsid); setsid(); open(my $f, ">>", "pids"); print $f "$$\n"; close $f; sleep 300' &
+while [ "$(wc -l < pids | tr -d ' ')" -lt 3 ]; do sleep 0.05; done
 echo ready
 wait
 "#;
@@ -121,7 +124,13 @@ wait
         assert!(started.elapsed() < Duration::from_secs(2));
         assert!(all_gone(&pids));
         let (_, exit) = run_to_exit(&rx);
-        assert_eq!(exit.signal.as_deref(), Some("Terminated"), "{exit:?}");
+        // Linux reports "Terminated", macOS "Terminated: 15".
+        assert!(
+            exit.signal
+                .as_deref()
+                .is_some_and(|s| s.starts_with("Terminated")),
+            "{exit:?}"
+        );
     }
 
     #[test]
