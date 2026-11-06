@@ -181,15 +181,45 @@ mod unix {
 mod windows {
     use super::*;
 
+    /// Like `run_to_exit`, but answers ConPTY's cursor-position query the way xterm.js does.
+    /// portable-pty creates the pseudoconsole with PSEUDOCONSOLE_INHERIT_CURSOR, so conhost
+    /// sends `ESC[6n` and waits for `ESC[row;colR` before the child starts.
+    fn run_to_exit_as_terminal(
+        session: &mut Session,
+        rx: &Receiver<SessionEvent>,
+    ) -> (String, ExitInfo) {
+        let started = Instant::now();
+        let mut output = Vec::new();
+        loop {
+            let remaining = DEADLINE
+                .checked_sub(started.elapsed())
+                .expect("process did not exit in time");
+            match rx
+                .recv_timeout(remaining)
+                .expect("process did not exit in time")
+            {
+                SessionEvent::Output(bytes) => {
+                    if bytes.windows(4).any(|w| w == b"\x1b[6n") {
+                        session.write(b"\x1b[1;1R").unwrap();
+                    }
+                    output.extend(bytes);
+                }
+                SessionEvent::Exited(info) => {
+                    return (String::from_utf8_lossy(&output).into_owned(), info);
+                }
+            }
+        }
+    }
+
     #[test]
     fn streams_output_and_reports_exit_code() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_session, rx) = start(options(
+        let (mut session, rx) = start(options(
             "cmd.exe",
             &["/d", "/c", "echo hello& exit /b 3"],
             tmp.path(),
         ));
-        let (output, exit) = run_to_exit(&rx);
+        let (output, exit) = run_to_exit_as_terminal(&mut session, &rx);
         assert!(output.contains("hello"), "{output:?}");
         assert_eq!(exit.code, 3);
     }

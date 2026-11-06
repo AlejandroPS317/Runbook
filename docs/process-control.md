@@ -30,6 +30,11 @@ Implemented in `crates/runbook-process` (M3):
   The exit event is always last: on Unix it waits for the reader to hit EOF; on Windows
   ConPTY keeps the pipe open, so it is sent as soon as the child exits.
 
+Windows: `portable-pty` creates the pseudoconsole with `PSEUDOCONSOLE_INHERIT_CURSOR`, so
+conhost first sends a cursor-position query (`ESC[6n`) and the child does not start until
+the terminal answers (`ESC[row;colR`). xterm.js answers it automatically; tests and any
+headless use must answer it themselves (see `tests/session.rs`).
+
 Until M4, stopping a session uses `portable-pty`'s killer: SIGHUP to the direct child on
 Unix, TerminateProcess on Windows. That is not a reliable tree kill.
 
