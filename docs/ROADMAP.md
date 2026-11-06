@@ -12,13 +12,13 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 | M0 Skeleton            | ✅    | 🚧    | 🚧      |
 | M1 Discovery           | ✅    | ✅    | ✅      |
 | M2 Monorepo workspaces | ✅    | ✅    | ✅      |
-| M3 One terminal        | 🚧    | 🚧    | 🚧      |
+| M3 One terminal        | ✅    | 🚧    | 🚧      |
 | M4 Stop and restart    | ⏳    | ⏳    | ⏳      |
 | M5 Multiple tabs       | ⏳    | ⏳    | ⏳      |
 | M6 Polish and packages | ⏳    | ⏳    | ⏳      |
 
-M0 on macOS and Windows: builds, lints and tests pass in CI; the window has not been
-opened on a real machine yet.
+M0 and M3 on macOS and Windows: builds, lints and tests (including PTY session tests) pass
+in CI; the app has not been run on a real machine yet.
 
 ## v1 scope
 
