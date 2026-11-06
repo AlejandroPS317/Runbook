@@ -1,0 +1,10 @@
+{
+  "name": "@acme/ui",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "test": "vitest run"
+  }
+}

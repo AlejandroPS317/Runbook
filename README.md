@@ -57,6 +57,14 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
+### Inspect discovery on a real project
+
+```sh
+cargo run -p runbook-core --example discover -- /path/to/project
+```
+
+Prints every package and script Runbook finds, any problems, and the time it took.
+
 ### App icon
 
 The source icon is `src-tauri/icons/icon.svg`. Regenerate the platform icons with

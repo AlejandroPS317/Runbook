@@ -1,0 +1,6 @@
+{
+  "name": "@acme/ui",
+  "scripts": {
+    "must-not-appear": "echo build output must be skipped"
+  }
+}

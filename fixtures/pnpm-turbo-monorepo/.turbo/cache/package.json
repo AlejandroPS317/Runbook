@@ -1,0 +1,6 @@
+{
+  "name": "decoy-turbo-cache",
+  "scripts": {
+    "must-not-appear": "echo tool caches must be skipped"
+  }
+}

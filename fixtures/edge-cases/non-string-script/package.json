@@ -1,0 +1,7 @@
+{
+  "name": "non-string-script",
+  "scripts": {
+    "ok": "echo ok",
+    "bad": 42
+  }
+}

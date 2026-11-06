@@ -1,0 +1,4 @@
+{
+  "name": "scripts-not-object",
+  "scripts": ["dev", "build"]
+}
