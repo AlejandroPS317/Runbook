@@ -88,7 +88,7 @@ wait
             "plain child shares the group"
         );
         assert_ne!(
-            process_group(pids[1]),
+            process_group(pids[2]),
             leader,
             "setsid child left the group"
         );
