@@ -1,8 +1,14 @@
 :root {
   color-scheme: light dark;
   --bg: #f7f7f8;
+  --surface: #ffffff;
   --text: #1c1c1f;
   --text-muted: #6b6b73;
+  --border: #e2e2e6;
+  --hover: #f0f0f3;
+  --accent: #16a34a;
+  --danger: #dc2626;
+  --mono: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
   font-family: system-ui, -apple-system, "Segoe UI", Ubuntu, Cantarell, sans-serif;
   font-size: 14px;
   background: var(--bg);
@@ -12,8 +18,13 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #18181b;
+    --surface: #1f1f23;
     --text: #ececef;
     --text-muted: #9a9aa3;
+    --border: #2e2e33;
+    --hover: #27272c;
+    --accent: #22c55e;
+    --danger: #f87171;
   }
 }
 
@@ -22,4 +33,39 @@ body,
 #app {
   height: 100%;
   margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  background: var(--accent);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }

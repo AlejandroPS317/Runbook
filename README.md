@@ -47,6 +47,10 @@ pnpm install
 pnpm tauri dev
 ```
 
+Pick a folder with **Open folder…**, then press ▶ next to a script to run it in the
+terminal panel. A built binary also accepts the folder on the command line:
+`runbook /path/to/project`.
+
 ### Checks (same as CI)
 
 ```sh
