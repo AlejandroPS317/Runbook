@@ -134,8 +134,14 @@ Runbook competes with IDEs on RAM, so resource use is a feature:
 - **GUI apps do not inherit the shell `PATH`** on Linux and macOS (nvm, fnm, volta,
   corepack live there). Resolve the user's login-shell environment before spawning
   scripts (M3).
-- **WebKitGTK rendering glitches** on some Linux GPU/Wayland setups are worked around with
-  `WEBKIT_DISABLE_DMABUF_RENDERER=1`; document any such workaround where it is applied.
+- **Blank or black window on Linux**: first rule out fonts. WebKitGTK 2.52 spins its web
+  process at 100% CPU, never navigates (inspector shows `about:blank`) and paints nothing
+  when the OpenDyslexic WOFF fonts in `/usr/share/fonts/woff` (package
+  `fonts-opendyslexic`, preinstalled on Zorin OS) are visible to fontconfig. It affects
+  every WebKitGTK app, not just Runbook. Fix and diagnosis are in the README
+  troubleshooting section. GPU-related glitches (mostly NVIDIA) are a separate cause,
+  worked around with `WEBKIT_DISABLE_DMABUF_RENDERER=1`; document any workaround where it
+  is applied.
 - **xterm.js** is published as `@xterm/xterm` and `@xterm/addon-*`; the unscoped `xterm`
   package is deprecated.
 - **TypeScript stays on 6.x** until `svelte-check` supports TypeScript 7 (its peer range is

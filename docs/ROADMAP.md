@@ -9,13 +9,16 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 
 | Milestone              | Linux | macOS | Windows |
 | ---------------------- | ----- | ----- | ------- |
-| M0 Skeleton            | 🚧    | 🚧    | 🚧      |
+| M0 Skeleton            | ✅    | 🚧    | 🚧      |
 | M1 Discovery           | ⏳    | ⏳    | ⏳      |
 | M2 Monorepo workspaces | ⏳    | ⏳    | ⏳      |
 | M3 One terminal        | ⏳    | ⏳    | ⏳      |
 | M4 Stop and restart    | ⏳    | ⏳    | ⏳      |
 | M5 Multiple tabs       | ⏳    | ⏳    | ⏳      |
 | M6 Polish and packages | ⏳    | ⏳    | ⏳      |
+
+M0 on macOS and Windows: builds, lints and tests pass in CI; the window has not been
+opened on a real machine yet.
 
 ## v1 scope
 
@@ -96,6 +99,9 @@ manager, and finds no surviving processes.
   shortcuts.
 - Installers: AppImage and deb (Linux), dmg (macOS), msi/exe (Windows).
 - Measure idle RAM with a project open and record it in the README.
+- Decide (ADR) whether installed builds should mitigate the WebKitGTK hang caused by
+  OpenDyslexic WOFF fonts on Linux themselves (see the README troubleshooting section), so
+  Zorin OS users do not get a blank window.
 
 Accepted per platform when its installer installs and runs on a clean machine without
 extra setup.
