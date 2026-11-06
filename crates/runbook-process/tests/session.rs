@@ -28,7 +28,11 @@ fn start(options: SpawnOptions) -> (Session, Receiver<SessionEvent>) {
 }
 
 /// Collects output until the exit event, failing the test after the deadline.
-fn run_to_exit(rx: &Receiver<SessionEvent>) -> (String, ExitInfo) {
+///
+/// Answers cursor-position queries like a real terminal (xterm.js does the same). Windows
+/// needs it: portable-pty creates the ConPTY with PSEUDOCONSOLE_INHERIT_CURSOR, so conhost
+/// sends `ESC[6n` and waits for `ESC[row;colR` before the child starts.
+fn run_to_exit(session: &mut Session, rx: &Receiver<SessionEvent>) -> (String, ExitInfo) {
     let started = Instant::now();
     let mut output = Vec::new();
     loop {
@@ -39,7 +43,12 @@ fn run_to_exit(rx: &Receiver<SessionEvent>) -> (String, ExitInfo) {
             .recv_timeout(remaining)
             .expect("process did not exit in time")
         {
-            SessionEvent::Output(bytes) => output.extend(bytes),
+            SessionEvent::Output(bytes) => {
+                if bytes.windows(4).any(|w| w == b"\x1b[6n") {
+                    session.write(b"\x1b[1;1R").unwrap();
+                }
+                output.extend(bytes);
+            }
             SessionEvent::Exited(info) => {
                 assert!(
                     rx.recv_timeout(Duration::from_millis(200)).is_err(),
@@ -91,8 +100,8 @@ mod unix {
     #[test]
     fn streams_output_and_reports_exit_code() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_session, rx) = start(sh("printf hello; exit 3", tmp.path()));
-        let (output, exit) = run_to_exit(&rx);
+        let (mut session, rx) = start(sh("printf hello; exit 3", tmp.path()));
+        let (output, exit) = run_to_exit(&mut session, &rx);
         assert!(output.contains("hello"), "{output:?}");
         assert_eq!(exit.code, 3);
     }
@@ -100,8 +109,8 @@ mod unix {
     #[test]
     fn output_printed_right_before_exit_arrives_before_the_exit_event() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_session, rx) = start(sh("printf start; sleep 0.2; printf end", tmp.path()));
-        let (output, exit) = run_to_exit(&rx);
+        let (mut session, rx) = start(sh("printf start; sleep 0.2; printf end", tmp.path()));
+        let (output, exit) = run_to_exit(&mut session, &rx);
         assert!(output.contains("startend"), "{output:?}");
         assert_eq!(exit.code, 0);
     }
@@ -109,8 +118,8 @@ mod unix {
     #[test]
     fn runs_in_the_requested_folder() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_session, rx) = start(sh("pwd -P", tmp.path()));
-        let (output, _) = run_to_exit(&rx);
+        let (mut session, rx) = start(sh("pwd -P", tmp.path()));
+        let (output, _) = run_to_exit(&mut session, &rx);
         let expected = tmp.path().canonicalize().unwrap();
         assert!(
             output.contains(expected.to_str().unwrap()),
@@ -124,8 +133,8 @@ mod unix {
         let mut opts = sh(r#"printf '%s|%s' "$RUNBOOK_TEST_VAR" "$TERM""#, tmp.path());
         opts.env
             .insert("RUNBOOK_TEST_VAR".into(), "from-runbook".into());
-        let (_session, rx) = start(opts);
-        let (output, _) = run_to_exit(&rx);
+        let (mut session, rx) = start(opts);
+        let (output, _) = run_to_exit(&mut session, &rx);
         assert!(output.contains("from-runbook|xterm-256color"), "{output:?}");
     }
 
@@ -137,8 +146,8 @@ mod unix {
             rows: 30,
             cols: 100,
         };
-        let (_session, rx) = start(opts);
-        let (output, _) = run_to_exit(&rx);
+        let (mut session, rx) = start(opts);
+        let (output, _) = run_to_exit(&mut session, &rx);
         assert!(output.contains("30 100"), "{output:?}");
     }
 
@@ -158,7 +167,7 @@ mod unix {
             .unwrap();
         // The terminal sends Enter as carriage return; the PTY line discipline maps it.
         session.write(b"abc\r").unwrap();
-        let (output, exit) = run_to_exit(&rx);
+        let (output, exit) = run_to_exit(&mut session, &rx);
         assert!(output.contains("40 120"), "{output:?}");
         assert!(output.contains("got:abc"), "{output:?}");
         assert_eq!(exit.code, 0);
@@ -171,7 +180,7 @@ mod unix {
         wait_for_output(&rx, "started");
         let started = Instant::now();
         session.kill().unwrap();
-        let (_, exit) = run_to_exit(&rx);
+        let (_, exit) = run_to_exit(&mut session, &rx);
         assert!(started.elapsed() < Duration::from_secs(5));
         assert_ne!(exit.code, 0, "{exit:?}");
     }
@@ -181,36 +190,6 @@ mod unix {
 mod windows {
     use super::*;
 
-    /// Like `run_to_exit`, but answers ConPTY's cursor-position query the way xterm.js does.
-    /// portable-pty creates the pseudoconsole with PSEUDOCONSOLE_INHERIT_CURSOR, so conhost
-    /// sends `ESC[6n` and waits for `ESC[row;colR` before the child starts.
-    fn run_to_exit_as_terminal(
-        session: &mut Session,
-        rx: &Receiver<SessionEvent>,
-    ) -> (String, ExitInfo) {
-        let started = Instant::now();
-        let mut output = Vec::new();
-        loop {
-            let remaining = DEADLINE
-                .checked_sub(started.elapsed())
-                .expect("process did not exit in time");
-            match rx
-                .recv_timeout(remaining)
-                .expect("process did not exit in time")
-            {
-                SessionEvent::Output(bytes) => {
-                    if bytes.windows(4).any(|w| w == b"\x1b[6n") {
-                        session.write(b"\x1b[1;1R").unwrap();
-                    }
-                    output.extend(bytes);
-                }
-                SessionEvent::Exited(info) => {
-                    return (String::from_utf8_lossy(&output).into_owned(), info);
-                }
-            }
-        }
-    }
-
     #[test]
     fn streams_output_and_reports_exit_code() {
         let tmp = tempfile::tempdir().unwrap();
@@ -219,7 +198,7 @@ mod windows {
             &["/d", "/c", "echo hello& exit /b 3"],
             tmp.path(),
         ));
-        let (output, exit) = run_to_exit_as_terminal(&mut session, &rx);
+        let (output, exit) = run_to_exit(&mut session, &rx);
         assert!(output.contains("hello"), "{output:?}");
         assert_eq!(exit.code, 3);
     }
