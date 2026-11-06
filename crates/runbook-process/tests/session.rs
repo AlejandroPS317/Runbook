@@ -51,25 +51,6 @@ fn run_to_exit(rx: &Receiver<SessionEvent>) -> (String, ExitInfo) {
     }
 }
 
-/// Waits until the accumulated output contains `needle`.
-fn wait_for_output(rx: &Receiver<SessionEvent>, needle: &str) -> String {
-    let started = Instant::now();
-    let mut output = Vec::new();
-    while !String::from_utf8_lossy(&output).contains(needle) {
-        let remaining = DEADLINE
-            .checked_sub(started.elapsed())
-            .unwrap_or_else(|| panic!("never saw {needle:?}"));
-        match rx.recv_timeout(remaining) {
-            Ok(SessionEvent::Output(bytes)) => output.extend(bytes),
-            Ok(SessionEvent::Exited(_)) | Err(_) => panic!(
-                "never saw {needle:?}; output: {:?}",
-                String::from_utf8_lossy(&output)
-            ),
-        }
-    }
-    String::from_utf8_lossy(&output).into_owned()
-}
-
 #[test]
 fn missing_program_is_a_spawn_error() {
     let tmp = tempfile::tempdir().unwrap();
@@ -86,6 +67,25 @@ mod unix {
 
     fn sh(script: &str, cwd: &Path) -> SpawnOptions {
         options("sh", &["-c", script], cwd)
+    }
+
+    /// Waits until the accumulated output contains `needle`.
+    fn wait_for_output(rx: &Receiver<SessionEvent>, needle: &str) -> String {
+        let started = Instant::now();
+        let mut output = Vec::new();
+        while !String::from_utf8_lossy(&output).contains(needle) {
+            let remaining = DEADLINE
+                .checked_sub(started.elapsed())
+                .unwrap_or_else(|| panic!("never saw {needle:?}"));
+            match rx.recv_timeout(remaining) {
+                Ok(SessionEvent::Output(bytes)) => output.extend(bytes),
+                Ok(SessionEvent::Exited(_)) | Err(_) => panic!(
+                    "never saw {needle:?}; output: {:?}",
+                    String::from_utf8_lossy(&output)
+                ),
+            }
+        }
+        String::from_utf8_lossy(&output).into_owned()
     }
 
     #[test]
