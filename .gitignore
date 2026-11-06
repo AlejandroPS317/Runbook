@@ -1,0 +1,26 @@
+# Rust
+/target/
+/src-tauri/target/
+/src-tauri/gen/schemas/
+
+# Frontend
+node_modules/
+/dist/
+*.tsbuildinfo
+.vite/
+
+# Fixtures keep node_modules/ and dist/ on purpose: tests check that discovery skips them.
+!/fixtures/**/node_modules/
+!/fixtures/**/dist/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Environment
+.env
+.env.*
