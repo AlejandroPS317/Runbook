@@ -27,8 +27,9 @@ Implemented in `crates/runbook-process` (M3):
   fallback to the app's own environment; Windows uses the app's environment.
 - Read the PTY on a dedicated blocking thread; a forwarder thread coalesces queued output
   (up to 64 KiB) and sends it to the frontend as raw bytes through a Tauri `Channel`.
-  The exit event is always last: on Unix it waits for the reader to hit EOF; on Windows
-  ConPTY keeps the pipe open, so it is sent as soon as the child exits.
+  The exit event is always last and only sent once the reader hit end of stream, so no
+  output is lost. Unix reaches EOF by itself; on Windows ConPTY keeps the pipe open, so the
+  forwarder closes the pseudoconsole when the child exits, which flushes and closes it.
 
 Windows: `portable-pty` creates the pseudoconsole with `PSEUDOCONSOLE_INHERIT_CURSOR`, so
 conhost first sends a cursor-position query (`ESC[6n`) and the child does not start until

@@ -8,12 +8,14 @@
 //! - reader: blocking reads from the PTY master;
 //! - waiter: blocks in `wait()` until the child exits;
 //! - forwarder: coalesces queued output into batches and delivers [`SessionEvent`]s, so the
-//!   callback runs on one thread, in order, with exit delivered last.
+//!   callback runs on one thread, in order, with exit delivered last (after the reader hit
+//!   end of stream, so no output is lost).
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
@@ -83,9 +85,13 @@ enum Message {
     Exited(ExitInfo),
 }
 
+/// The PTY master, shared with the forwarder so it can close the terminal once the child
+/// exits (needed on Windows, see `forward`). `None` once closed.
+type SharedMaster = Arc<Mutex<Option<Box<dyn MasterPty + Send>>>>;
+
 /// A running (or finished) script attached to a PTY.
 pub struct Session {
-    master: Box<dyn MasterPty + Send>,
+    master: SharedMaster,
     writer: Box<dyn Write + Send>,
     killer: Box<dyn ChildKiller + Send + Sync>,
     pid: Option<u32>,
@@ -153,10 +159,12 @@ impl Session {
             };
             let _ = waiter_tx.send(Message::Exited(info));
         });
-        thread::spawn(move || forward(rx, on_event));
+        let master: SharedMaster = Arc::new(Mutex::new(Some(pair.master)));
+        let forwarder_master = Arc::clone(&master);
+        thread::spawn(move || forward(rx, on_event, forwarder_master));
 
         Ok(Self {
-            master: pair.master,
+            master,
             writer,
             killer,
             pid,
@@ -176,11 +184,16 @@ impl Session {
             .map_err(|err| SessionError::Io(err.to_string()))
     }
 
-    /// Tells the PTY, and through it the program, the new terminal size.
+    /// Tells the PTY, and through it the program, the new terminal size. Does nothing once
+    /// the terminal has been closed after the script ended.
     pub fn resize(&self, size: TerminalSize) -> Result<(), SessionError> {
-        self.master
-            .resize(size.into())
-            .map_err(|err| SessionError::Io(err.to_string()))
+        let master = self.master.lock().unwrap_or_else(PoisonError::into_inner);
+        match master.as_ref() {
+            Some(master) => master
+                .resize(size.into())
+                .map_err(|err| SessionError::Io(err.to_string())),
+            None => Ok(()),
+        }
     }
 
     /// Asks the direct child to stop.
@@ -223,7 +236,10 @@ fn spawn_reader(mut reader: Box<dyn Read + Send>, tx: Sender<Message>) {
     });
 }
 
-fn forward(rx: Receiver<Message>, mut on_event: impl FnMut(SessionEvent)) {
+/// Delivers output batches, then the exit once the child has exited and the reader has
+/// reached the end of the stream, so output printed right before exiting is never lost or
+/// reported after the exit.
+fn forward(rx: Receiver<Message>, mut on_event: impl FnMut(SessionEvent), master: SharedMaster) {
     let mut reader_done = false;
     let mut exit: Option<ExitInfo> = None;
     while let Ok(message) = rx.recv() {
@@ -234,7 +250,10 @@ fn forward(rx: Receiver<Message>, mut on_event: impl FnMut(SessionEvent)) {
             match message {
                 Message::Output(bytes) => batch.extend_from_slice(&bytes),
                 Message::ReaderDone => reader_done = true,
-                Message::Exited(info) => exit = Some(info),
+                Message::Exited(info) => {
+                    exit = Some(info);
+                    close_terminal_after_exit(&master);
+                }
             }
             if batch.len() < MAX_BATCH {
                 next = rx.try_recv().ok();
@@ -243,19 +262,23 @@ fn forward(rx: Receiver<Message>, mut on_event: impl FnMut(SessionEvent)) {
         if !batch.is_empty() {
             on_event(SessionEvent::Output(batch));
         }
-        if let Some(info) = exit.as_ref().filter(|_| exit_can_be_reported(reader_done)) {
+        if let Some(info) = exit.as_ref().filter(|_| reader_done) {
             on_event(SessionEvent::Exited(info.clone()));
             return;
         }
     }
 }
 
-/// Whether the exit event may be sent now that the child has exited.
+/// Lets the reader reach end of stream once the child has exited.
 ///
-/// Linux/macOS: wait until the reader hit EOF, so output printed just before exiting is
-/// never reported after the exit.
-/// Windows: ConPTY keeps the output pipe open until the pseudoconsole is closed, so the
-/// reader would not finish on its own; report the exit right away.
-fn exit_can_be_reported(reader_done: bool) -> bool {
-    reader_done || cfg!(windows)
+/// Linux/macOS: nothing to do; the reader sees EOF (EIO on Linux) by itself once the
+/// script and every child holding the PTY have exited.
+/// Windows: ConPTY keeps the output pipe open until the pseudoconsole is closed. Dropping
+/// the master (the last owner, the slave was dropped at spawn) calls ClosePseudoConsole,
+/// which flushes pending output to the reader and then closes the pipe.
+fn close_terminal_after_exit(master: &SharedMaster) {
+    if cfg!(windows) {
+        let closed = master.lock().unwrap_or_else(PoisonError::into_inner).take();
+        drop(closed);
+    }
 }
