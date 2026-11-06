@@ -38,6 +38,14 @@ export function resizeTerminal(id: number, size: TerminalSize): Promise<void> {
   return invoke("resize_terminal", { id, cols: size.cols, rows: size.rows });
 }
 
+/**
+ * Stops the script and its whole process tree, keeping the session's output. Resolves once
+ * everything has exited; `onExit` fires as usual.
+ */
+export function stopTerminal(id: number): Promise<void> {
+  return invoke("stop_terminal", { id });
+}
+
 /** Stops the script if it is still running and releases the session. */
 export function closeTerminal(id: number): Promise<void> {
   return invoke("close_terminal", { id });

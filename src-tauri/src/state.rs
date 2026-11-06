@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use runbook_core::Discovery;
 use runbook_process::{Environment, Session, login_environment};
@@ -15,7 +15,7 @@ pub struct AppState {
     /// Folder given on the command line (`runbook <folder>`), opened once at startup.
     pub initial_path: Mutex<Option<PathBuf>>,
     pub project: Mutex<Option<Discovery>>,
-    pub sessions: Mutex<HashMap<SessionId, Session>>,
+    pub sessions: Mutex<HashMap<SessionId, Arc<Session>>>,
     next_session: AtomicU32,
     environment: OnceLock<Environment>,
 }

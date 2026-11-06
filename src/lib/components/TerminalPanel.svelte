@@ -3,7 +3,13 @@
   import { Terminal } from "@xterm/xterm";
   import "@xterm/xterm/css/xterm.css";
   import { onMount } from "svelte";
-  import { closeTerminal, resizeTerminal, runScript, writeTerminal } from "../ipc/terminal";
+  import {
+    closeTerminal,
+    resizeTerminal,
+    runScript,
+    stopTerminal,
+    writeTerminal,
+  } from "../ipc/terminal";
   import type { ExitInfo } from "../ipc/types";
 
   interface Props {
@@ -14,10 +20,19 @@
 
   let { packageDir, script, label }: Props = $props();
 
-  type Status = { kind: "starting" } | { kind: "running" } | { kind: "exited"; info: ExitInfo } | { kind: "failed"; message: string };
+  type Status =
+    | { kind: "starting" }
+    | { kind: "running" }
+    | { kind: "stopping" }
+    | { kind: "exited"; info: ExitInfo }
+    | { kind: "failed"; message: string };
 
   let status = $state<Status>({ kind: "starting" });
   let container: HTMLDivElement;
+
+  // Set in onMount; the buttons only exist after mount.
+  let restart: () => Promise<void> = async () => {};
+  let stop: () => Promise<void> = async () => {};
 
   function statusText(current: Status): string {
     switch (current.kind) {
@@ -25,6 +40,8 @@
         return "Starting…";
       case "running":
         return "Running";
+      case "stopping":
+        return "Stopping…";
       case "exited":
         return current.info.signal
           ? `Stopped (${current.info.signal})`
@@ -53,26 +70,55 @@
 
     let sessionId: number | null = null;
     let disposed = false;
+    // Incremented on every start; events from an older run are ignored.
+    let run = 0;
 
-    runScript(
-      packageDir,
-      script,
-      { cols: terminal.cols, rows: terminal.rows },
-      {
-        onOutput: (data) => terminal.write(data),
-        onExit: (info) => (status = { kind: "exited", info }),
-      },
-    ).then(
-      (id) => {
-        if (disposed) {
-          void closeTerminal(id);
-          return;
-        }
-        sessionId = id;
-        if (status.kind === "starting") status = { kind: "running" };
-      },
-      (err) => (status = { kind: "failed", message: String(err) }),
-    );
+    function start() {
+      const current = ++run;
+      status = { kind: "starting" };
+      runScript(
+        packageDir,
+        script,
+        { cols: terminal.cols, rows: terminal.rows },
+        {
+          onOutput: (data) => {
+            if (current === run) terminal.write(data);
+          },
+          onExit: (info) => {
+            if (current === run) status = { kind: "exited", info };
+          },
+        },
+      ).then(
+        (id) => {
+          if (disposed || current !== run) {
+            void closeTerminal(id);
+            return;
+          }
+          sessionId = id;
+          if (status.kind === "starting") status = { kind: "running" };
+        },
+        (err) => {
+          if (current === run) status = { kind: "failed", message: String(err) };
+        },
+      );
+    }
+
+    stop = async () => {
+      if (sessionId === null || status.kind !== "running") return;
+      status = { kind: "stopping" };
+      await stopTerminal(sessionId);
+    };
+
+    restart = async () => {
+      const previous = sessionId;
+      sessionId = null;
+      run += 1;
+      status = { kind: "stopping" };
+      if (previous !== null) await closeTerminal(previous);
+      if (disposed) return;
+      terminal.reset();
+      start();
+    };
 
     const input = terminal.onData((data) => {
       if (sessionId !== null) void writeTerminal(sessionId, data);
@@ -88,6 +134,7 @@
       }
     });
     observer.observe(container);
+    start();
 
     return () => {
       disposed = true;
@@ -97,14 +144,28 @@
       terminal.dispose();
     };
   });
+
+  const busy = $derived(status.kind === "starting" || status.kind === "stopping");
 </script>
 
 <section class="panel">
   <header>
     <span class="label">{label}</span>
-    <span class="status" class:ok={status.kind === "running"} class:bad={status.kind === "failed" || (status.kind === "exited" && status.info.code !== 0)}>
+    <span
+      class="status"
+      class:ok={status.kind === "running"}
+      class:bad={status.kind === "failed" || (status.kind === "exited" && status.info.code !== 0)}
+    >
       {statusText(status)}
     </span>
+    <div class="actions">
+      <button onclick={() => stop()} disabled={status.kind !== "running"} title="Stop the script and every process it started">
+        ■ Stop
+      </button>
+      <button onclick={() => restart()} disabled={busy} title="Stop and run the script again">
+        ↻ Restart
+      </button>
+    </div>
   </header>
   <div class="terminal" bind:this={container}></div>
 </section>
@@ -120,15 +181,17 @@
 
   header {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
     gap: 1rem;
-    padding: 0.4rem 0.75rem;
+    padding: 0.3rem 0.5rem 0.3rem 0.75rem;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     font-size: 0.85rem;
   }
 
   .label {
+    flex: 1;
+    min-width: 0;
     font-family: var(--mono);
     white-space: nowrap;
     overflow: hidden;
@@ -146,6 +209,16 @@
 
   .status.bad {
     color: var(--danger);
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .actions button {
+    padding: 0.2rem 0.6rem;
+    font-size: 0.8rem;
   }
 
   .terminal {

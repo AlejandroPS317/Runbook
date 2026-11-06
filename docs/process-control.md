@@ -10,8 +10,9 @@ processes, and stopping a script must stop the whole tree on every platform.
 - **Restart** = stop (wait until the tree is gone) + spawn with the same command and cwd.
 - **App exit leaves no orphans**: closing the window or quitting stops every session
   before the process exits.
-- **No busy loops**: wait on process exit, PTY reads and channels. The only timer is the
-  grace period between graceful and forced termination.
+- **No busy loops**: wait on process exit, PTY reads and channels. The only timed part is
+  a stop: the grace period between graceful and forced termination, during which liveness
+  is re-checked every 20 ms. Nothing polls while scripts run.
 
 ## Spawning
 
@@ -34,30 +35,42 @@ Implemented in `crates/runbook-process` (M3):
 Windows: `portable-pty` creates the pseudoconsole with `PSEUDOCONSOLE_INHERIT_CURSOR`, so
 conhost first sends a cursor-position query (`ESC[6n`) and the child does not start until
 the terminal answers (`ESC[row;colR`). xterm.js answers it automatically; tests and any
-headless use must answer it themselves (see `tests/session.rs`).
-
-Until M4, stopping a session uses `portable-pty`'s killer: SIGHUP to the direct child on
-Unix, TerminateProcess on Windows. That is not a reliable tree kill.
+headless use must answer it themselves (see `tests/common/mod.rs`).
 
 ## Stopping, per platform
 
-### Linux and macOS
+Implemented in `crates/runbook-process` (M4): `Session::stop(grace)` in `stop.rs`, the
+platform code in `tree/`. The default grace is 3 s (`DEFAULT_GRACE`). `stop` only acts
+while the script's direct child is running: afterwards its pid may be reused, so nothing
+is signalled (`AlreadyExited`). Dropping a session whose script still runs kills the tree
+immediately (`kill_tree_now`). On app exit, `src-tauri` stops every session in parallel
+and waits for all of them.
 
-- `portable-pty` makes the child a session leader (`setsid`), so its process group id
-  equals its pid. Assert this in a test rather than assuming it.
-- Send `SIGTERM` to the group (`kill(-pgid, SIGTERM)`), wait for the grace period
-  (default 3 s), then send `SIGKILL` to the group.
-- Descendants that call `setsid`/`setpgid` leave the group. On Linux, also collect the
-  descendant pids from `/proc` before signaling and signal them directly. On macOS, use
-  `sysctl`/`proc_listchildpids` for the same purpose if tests show escapes.
+### Linux and macOS (`tree/unix.rs`)
 
-### Windows
+- `portable-pty` makes the child a session leader (`setsid`), so its process-group id
+  equals its pid (asserted in `tests/stop.rs`).
+- Snapshot the tree: the leader plus every descendant by parent links. Linux reads
+  `/proc/<pid>/stat` (`tree/linux.rs`) and records each start time, so a reused pid is
+  never signalled and zombies count as gone. macOS uses `proc_listchildpids`
+  (`tree/macos.rs`). The snapshot catches descendants that left the group with `setsid`.
+- `SIGTERM` to the group and to each live process of the snapshot; wait up to the grace
+  period; re-snapshot the survivors' children; `SIGKILL` to the group and everything
+  left; wait up to 2 s (`KILL_WAIT`).
+- When the session leader dies, the kernel also sends `SIGHUP` to the terminal's
+  foreground group; tests that exercise the forced path ignore both `TERM` and `HUP`.
 
-- Assign the child to a Job Object created with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`;
-  closing or terminating the job kills the tree.
-- Known race: the child can spawn grandchildren before it is assigned to the job.
-  Document how the implementation handles it (ADR in M4).
-- Fallback: `taskkill /T /F /PID <pid>`.
+### Windows (`stop.rs`, `tree/windows.rs`)
+
+See [ADR 0005](decisions/0005-windows-tree-termination.md).
+
+- Write Ctrl+C (`0x03`) to the pseudoconsole: conhost delivers `CTRL_C_EVENT` to every
+  process attached to it. Wait for the direct child's exit (event-based, no polling).
+- After the grace period, `taskkill /T /F /PID <pid>` terminates the tree by parent pid.
+- When the child exits, the forwarder closes the pseudoconsole, which also ends any
+  remaining console-attached process.
+- Batch files (`pnpm.cmd`) answer Ctrl+C with "Terminate batch job (Y/N)?" and keep
+  running, so for them the forced path is the normal one.
 
 ## Comments
 
@@ -66,7 +79,7 @@ Every OS-specific block states, for each OS, what it does and why. Example:
 ```rust
 // Linux/macOS: signal the whole process group created by setsid so that
 // children spawned by turbo/pnpm/vite receive SIGTERM too.
-// Windows: handled by the Job Object in `windows.rs`; this path is not compiled.
+// Windows: handled by Ctrl+C and taskkill in `stop.rs`; this path is not compiled.
 #[cfg(unix)]
 fn terminate_group(pgid: Pid) -> Result<(), StopError> { /* ... */ }
 ```
