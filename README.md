@@ -17,6 +17,38 @@ Early development; nothing is usable yet. Linux is the primary platform, with ma
 Windows following. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones and
 per-platform status.
 
+## Install
+
+Installers are built by the [Release workflow](.github/workflows/release.yml) for every
+`v*` tag (and attached to a draft GitHub release):
+
+| OS      | Files                                   |
+| ------- | --------------------------------------- |
+| Linux   | `.deb` (Debian/Ubuntu), `.AppImage` (any distribution, no install needed) |
+| macOS   | `.dmg`                                  |
+| Windows | `.msi` and setup `.exe`                 |
+
+The installers are not code-signed yet: macOS Gatekeeper and Windows SmartScreen warn on
+first launch. On macOS, right-click the app and choose **Open**; on Windows, choose
+**More info → Run anyway**.
+
+The `.deb` needs only the system WebKitGTK and GTK (`libwebkit2gtk-4.1-0`, `libgtk-3-0`),
+which the package manager installs. Build them locally with
+`pnpm tauri build --bundles deb,appimage`.
+
+### Memory use
+
+Measured on Linux (Zorin OS 18, WebKitGTK 2.52) with the `fixtures/pnpm-turbo-monorepo`
+project open and no script running, as PSS (shared pages split between processes) summed
+over Runbook and its WebKit helpers:
+
+| Build                    | Total   | runbook | WebKit web | WebKit network |
+| ------------------------ | ------- | ------- | ---------- | -------------- |
+| Release binary (`.deb`)  | 241 MiB | 100 MiB | 124 MiB    | 16 MiB         |
+| AppImage                 | 255 MiB | 106 MiB | 125 MiB    | 22 MiB         |
+
+Each running script adds its own processes (node, vite, …), which are not counted here.
+
 ## Development setup
 
 ### Prerequisites
@@ -96,11 +128,15 @@ and `Square*`/`StoreLogo` files: Runbook only ships desktop builds.
 
 WebKitGTK 2.52 (the system webview Tauri uses on Linux) hangs before painting anything
 when the OpenDyslexic WOFF fonts from the `fonts-opendyslexic` package are installed;
-Zorin OS ships them by default. Every WebKitGTK app is affected, not only Runbook. To
-check, see whether `fc-list | grep /usr/share/fonts/woff/` prints anything.
+Zorin OS ships them by default. Runbook works around it by itself: at startup it points
+fontconfig at `~/.cache/runbook/fontconfig.conf`, which loads your normal configuration
+and skips WOFF files ([ADR 0006](docs/decisions/0006-linux-woff-font-workaround.md)). Set
+`FONTCONFIG_FILE` yourself to opt out.
 
-Fix without `sudo` by hiding only those files from fontconfig (the OTF version of
-OpenDyslexic stays available):
+Other WebKitGTK apps are still affected. To check, see whether
+`fc-list | grep /usr/share/fonts/woff/` prints anything. Fix it for every app without
+`sudo` by hiding only those files from fontconfig (the OTF version of OpenDyslexic stays
+available):
 
 ```sh
 mkdir -p ~/.config/fontconfig/conf.d

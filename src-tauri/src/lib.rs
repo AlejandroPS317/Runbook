@@ -2,6 +2,7 @@
 //! the crates under `crates/`.
 
 mod error;
+mod fonts;
 mod project;
 mod recent;
 mod state;
@@ -15,6 +16,7 @@ use tauri::{Manager, RunEvent};
 use crate::state::{AppState, lock};
 
 pub fn run() {
+    fonts::apply_workaround();
     let state = AppState::default();
     *lock(&state.initial_path) = std::env::args_os().nth(1).map(PathBuf::from);
 

@@ -22,3 +22,4 @@ approaches that are expensive to reverse.
 | [0003](0003-license.md)              | Dual MIT / Apache-2.0       | Accepted |
 | [0004](0004-yaml-parser.md)          | YAML parser (`yaml-rust2`)  | Accepted |
 | [0005](0005-windows-tree-termination.md) | Windows tree termination | Accepted |
+| [0006](0006-linux-woff-font-workaround.md) | Linux WOFF font workaround | Accepted |

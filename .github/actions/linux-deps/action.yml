@@ -1,0 +1,34 @@
+name: Linux system dependencies
+description: WebKitGTK and the other packages Tauri needs on Ubuntu, cached and with bounded retries.
+
+runs:
+  using: composite
+  steps:
+    # The .deb files are cached: the runner's mirror sometimes trickles the 25 MB WebKitGTK
+    # package for many minutes.
+    - name: Cache Linux packages
+      uses: actions/cache@v6
+      with:
+        path: ~/apt-archives
+        key: apt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/linux-deps/action.yml') }}
+
+    # man-db triggers re-index manuals for every installed package and can stall the step,
+    # so they are disabled first. Each attempt is bounded so a stalled download is retried
+    # instead of eating the whole job.
+    - name: Install packages
+      shell: bash
+      run: |
+        sudo rm -f /var/lib/man-db/auto-update
+        mkdir -p ~/apt-archives/partial
+        apt_opts="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Dir::Cache::Archives=$HOME/apt-archives"
+        sudo apt-get $apt_opts update
+        for attempt in 1 2 3; do
+          if sudo timeout 300 apt-get $apt_opts install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev; then
+            break
+          fi
+          [ "$attempt" = 3 ] && exit 1
+          echo "apt install attempt $attempt failed or stalled; retrying"
+        done
+        sudo rm -rf ~/apt-archives/partial ~/apt-archives/lock
+        sudo chown -R "$USER" ~/apt-archives

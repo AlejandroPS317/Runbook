@@ -34,6 +34,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Runbook contributors",
+    "homepage": "https://github.com/AlejandroPS317/Runbook",
+    "copyright": "Copyright (c) 2026 Alejandro and the Runbook contributors",
+    "license": "MIT OR Apache-2.0",
+    "category": "DeveloperTool",
+    "shortDescription": "Run package.json scripts without opening an IDE",
+    "longDescription": "Runbook finds every package.json in a project or monorepo (pnpm and npm workspaces), lists the scripts grouped by package, and runs each one in its own terminal tab. Stopping a script stops every process it started.",
+    "linux": {
+      "deb": {
+        "section": "devel"
+      }
+    }
   }
 }
