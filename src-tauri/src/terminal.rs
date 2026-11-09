@@ -49,6 +49,17 @@ pub async fn run_script(
         env: script_environment(&state),
         size: TerminalSize { rows, cols },
     };
+    start_session(&state, project_root, options, on_output, on_exit).await
+}
+
+/// Spawns a session for the open project at `project_root` and streams its output.
+pub(crate) async fn start_session(
+    state: &AppState,
+    project_root: String,
+    options: SpawnOptions,
+    on_output: Channel<InvokeResponseBody>,
+    on_exit: Channel<ExitDto>,
+) -> Result<SessionId, CommandError> {
     let session = Session::spawn(options, move |event| match event {
         // A send fails only when the webview is gone; there is nobody left to tell.
         SessionEvent::Output(bytes) => {
@@ -116,7 +127,7 @@ pub async fn close_terminal(id: SessionId, state: State<'_, AppState>) -> Result
 }
 
 /// The login-shell environment, without Runbook's own font workaround (ADR 0006).
-fn script_environment(state: &AppState) -> runbook_process::Environment {
+pub(crate) fn script_environment(state: &AppState) -> runbook_process::Environment {
     let mut env = state.environment().clone();
     fonts::scrub(&mut env);
     env

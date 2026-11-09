@@ -17,6 +17,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 | M5 Multiple tabs       | ✅    | ✅    | ✅      |
 | M6 Polish and packages | ✅    | 🚧    | 🚧      |
 | M7 Multiple projects   | 🚧    | 🚧    | 🚧      |
+| M8 Project terminal    | ✅    | ✅    | 🚧      |
 
 M0 and M3 on macOS and Windows: builds, lints and tests (including PTY session tests) pass
 in CI; the app has not been run on a real machine yet.
@@ -28,6 +29,9 @@ In-app updates ([ADR 0007](decisions/0007-in-app-updates.md)): on Linux an AppIm
 updated itself from 0.1.1 to 0.1.2 against a local manifest, including stopping a running
 script first. Pending: a `.deb` update from a published release (Linux), and a first
 update on macOS and Windows.
+
+M8 on Windows: the PowerShell shell tab and its quoting build in CI but have no session
+test and have not been run on a real machine yet.
 
 ## v1 scope
 
@@ -132,6 +136,20 @@ Accepted per platform when the session manager tests (`stop_many` leaves the oth
 sessions running) pass on that platform's CI runner, and on Linux three real projects run
 scripts side by side, closing one leaves no process of it behind and keeps the others
 running.
+
+### M8 – Project terminal
+
+- Open an interactive shell tab in the project root or in any package folder, for commands
+  that are not scripts. The shell is the user's (`$SHELL`), with the login-shell
+  environment.
+- Open a script "in a terminal": a shell in the package folder with `<pm> run <script> `
+  already typed at the prompt, so the user can add arguments (for example `--apply`)
+  before pressing Enter. Runbook never runs that line itself.
+- Shell tabs stop, restart and close like script tabs, leaving no process behind.
+
+Accepted per platform when the interactive-shell session tests pass on that platform's CI
+runner, and on Linux a real monorepo script runs both from ▶ and from a prefilled shell
+with extra flags, and closing shell tabs leaves no processes behind.
 
 ## Reference fixture
 

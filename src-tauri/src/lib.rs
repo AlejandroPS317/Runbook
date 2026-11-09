@@ -6,6 +6,7 @@ mod fonts;
 mod project;
 mod projects;
 mod recent;
+mod shell;
 mod state;
 mod terminal;
 mod updates;
@@ -45,6 +46,7 @@ pub fn run() {
             recent::recent_projects,
             recent::forget_recent_project,
             terminal::run_script,
+            shell::open_shell,
             terminal::write_terminal,
             terminal::resize_terminal,
             terminal::stop_terminal,
