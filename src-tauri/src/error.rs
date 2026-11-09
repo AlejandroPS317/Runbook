@@ -8,9 +8,9 @@ pub enum CommandError {
     Discovery(#[from] runbook_core::DiscoveryError),
     #[error(transparent)]
     Session(#[from] runbook_process::SessionError),
-    #[error("no project is open")]
-    NoProject,
-    #[error("package \"{0}\" is not part of the open project")]
+    #[error("project {0} is not open")]
+    ProjectNotOpen(String),
+    #[error("package \"{0}\" is not part of the project")]
     PackageNotFound(String),
     #[error("script \"{script}\" does not exist in package \"{package}\"")]
     ScriptNotFound { package: String, script: String },

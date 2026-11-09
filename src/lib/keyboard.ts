@@ -42,6 +42,26 @@ export function shortcutFor(event: KeyboardEvent): Action | null {
   }
 }
 
+/**
+ * The project (0-based position in the project bar) selected by Alt+1…9, or ⌘1…9 on macOS;
+ * `null` when the key is not a project shortcut. Matches `event.code`, so keyboard layouts
+ * do not matter. Any other modifier cancels it: Windows reports AltGr as Ctrl+Alt, and
+ * AltGr+digit types characters such as `@` on Spanish layouts.
+ */
+export function projectIndexFor(event: KeyboardEvent): number | null {
+  const { altKey: alt, ctrlKey: ctrl, metaKey: meta, shiftKey: shift, code } = event;
+  const pressed = isMac ? meta && !alt && !ctrl && !shift : alt && !ctrl && !meta && !shift;
+  if (!pressed) return null;
+  const match = /^Digit([1-9])$/.exec(code);
+  return match ? Number(match[1]) - 1 : null;
+}
+
+/** Key combination that selects the project at `index` (0-based), e.g. "Alt+1" or "⌘1". */
+export function projectShortcutLabel(index: number): string | null {
+  if (index > 8) return null;
+  return `${isMac ? "⌘" : "Alt+"}${index + 1}`;
+}
+
 /** Human-readable key combination for tooltips, e.g. "Ctrl+Shift+R" or "⌘⇧R". */
 export function shortcutLabel(action: Action): string {
   const mod = isMac ? "⌘" : "Ctrl+";

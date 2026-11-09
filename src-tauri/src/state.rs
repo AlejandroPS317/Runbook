@@ -3,15 +3,16 @@
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
-use runbook_core::Discovery;
 use runbook_process::{Environment, SessionManager, login_environment};
+
+use crate::projects::OpenProjects;
 
 #[derive(Default)]
 pub struct AppState {
     /// Folder given on the command line (`runbook <folder>`), opened once at startup.
     pub initial_path: Mutex<Option<PathBuf>>,
-    pub project: Mutex<Option<Discovery>>,
-    /// Every terminal session, one per tab.
+    pub projects: OpenProjects,
+    /// Every terminal session of every project, one per tab.
     pub sessions: SessionManager,
     environment: OnceLock<Environment>,
 }

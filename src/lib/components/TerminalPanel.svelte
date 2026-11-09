@@ -10,19 +10,23 @@
     stopTerminal,
     writeTerminal,
   } from "../ipc/terminal";
-  import { shortcutFor, shortcutLabel } from "../keyboard";
+  import { projectIndexFor, shortcutFor, shortcutLabel } from "../keyboard";
   import { statusText, statusTone, type TerminalStatus } from "../terminal/status";
 
   interface Props {
+    projectRoot: string;
     packageDir: string;
     script: string;
     label: string;
-    /** Only the active tab is visible; hidden tabs keep running and keep their output. */
+    /**
+     * Only the active tab of the selected project is visible; hidden tabs keep running and
+     * keep their output.
+     */
     active: boolean;
     onStatus: (status: TerminalStatus) => void;
   }
 
-  let { packageDir, script, label, active, onStatus }: Props = $props();
+  let { projectRoot, packageDir, script, label, active, onStatus }: Props = $props();
 
   let status = $state<TerminalStatus>({ kind: "starting" });
   let container: HTMLDivElement;
@@ -58,7 +62,9 @@
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     // App shortcuts are not sent to the program; they bubble up to the window handler.
-    terminal.attachCustomKeyEventHandler((event) => shortcutFor(event) === null);
+    terminal.attachCustomKeyEventHandler(
+      (event) => shortcutFor(event) === null && projectIndexFor(event) === null,
+    );
     terminal.open(container);
     fit.fit();
 
@@ -82,6 +88,7 @@
       const current = ++run;
       status = { kind: "starting" };
       runScript(
+        projectRoot,
         packageDir,
         script,
         { cols: terminal.cols, rows: terminal.rows },

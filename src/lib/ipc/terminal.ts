@@ -8,8 +8,9 @@ export interface TerminalHandlers {
   onExit(info: ExitInfo): void;
 }
 
-/** Runs a script of the open project in a new PTY session and returns its id. */
+/** Runs a script of the open project at `projectRoot` in a new PTY session; returns its id. */
 export function runScript(
+  projectRoot: string,
   packageDir: string,
   script: string,
   size: TerminalSize,
@@ -21,6 +22,7 @@ export function runScript(
   const onExit = new Channel<ExitInfo>();
   onExit.onmessage = (info) => handlers.onExit(info);
   return invoke<number>("run_script", {
+    projectRoot,
     packageDir,
     script,
     cols: size.cols,

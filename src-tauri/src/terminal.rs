@@ -1,4 +1,4 @@
-//! Terminal sessions: run a script of the open project in a PTY and stream its output.
+//! Terminal sessions: run a script of an open project in a PTY and stream its output.
 //! Mirrors `src/lib/ipc/terminal.ts`.
 
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use tauri::ipc::{Channel, InvokeResponseBody};
 
 use crate::error::CommandError;
 use crate::fonts;
-use crate::state::{AppState, lock};
+use crate::state::AppState;
 
 #[derive(Serialize, Clone)]
 pub struct ExitDto {
@@ -20,13 +20,16 @@ pub struct ExitDto {
     signal: Option<String>,
 }
 
-/// Runs `script` from the package at `package_dir` (relative to the project root).
+/// Runs `script` from the package at `package_dir` (relative to `project_root`) of an open
+/// project.
 ///
-/// Only scripts that exist in the open project can be run; the command line is always
+/// Only scripts that exist in that project can be run; the command line is always
 /// `<package manager> run <script>`, built from argv and never through a shell string.
 /// Output arrives on `on_output` as raw bytes (an `ArrayBuffer` in JS); `on_exit` fires once.
+#[allow(clippy::too_many_arguments)] // Tauri commands take their IPC arguments one by one.
 #[tauri::command]
 pub async fn run_script(
+    project_root: String,
     package_dir: String,
     script: String,
     cols: u16,
@@ -35,27 +38,14 @@ pub async fn run_script(
     on_exit: Channel<ExitDto>,
     state: State<'_, AppState>,
 ) -> Result<SessionId, CommandError> {
-    let (cwd, manager) = {
-        let project = lock(&state.project);
-        let project = project.as_ref().ok_or(CommandError::NoProject)?;
-        let package = project
-            .packages
-            .iter()
-            .find(|p| p.relative_dir == package_dir)
-            .ok_or_else(|| CommandError::PackageNotFound(package_dir.clone()))?;
-        if !package.scripts.iter().any(|s| s.name == script) {
-            return Err(CommandError::ScriptNotFound {
-                package: package_dir,
-                script,
-            });
-        }
-        (package.dir.clone(), project.package_manager)
-    };
+    let target = state
+        .projects
+        .resolve(&project_root, &package_dir, &script)?;
 
     let options = SpawnOptions {
-        program: manager.command().to_owned(),
+        program: target.package_manager.command().to_owned(),
         args: vec!["run".to_owned(), script],
-        cwd,
+        cwd: target.cwd,
         env: script_environment(&state),
         size: TerminalSize { rows, cols },
     };
@@ -72,7 +62,16 @@ pub async fn run_script(
         }
     })?;
 
-    Ok(state.sessions.insert(Arc::new(session)))
+    let id = state.sessions.insert(Arc::new(session));
+    // The project may have been closed while the script was spawning; its sessions were
+    // already stopped, so this one must not outlive it.
+    if !state.projects.attach(&project_root, id) {
+        if let Some(session) = state.sessions.remove(id) {
+            stop_off_thread(session).await;
+        }
+        return Err(CommandError::ProjectNotOpen(project_root));
+    }
+    Ok(id)
 }
 
 /// Sends keyboard input typed in the terminal.
@@ -109,6 +108,7 @@ pub async fn stop_terminal(id: SessionId, state: State<'_, AppState>) -> Result<
 /// Stops the script (if still running) and forgets the session.
 #[tauri::command]
 pub async fn close_terminal(id: SessionId, state: State<'_, AppState>) -> Result<(), CommandError> {
+    state.projects.detach(id);
     if let Some(session) = state.sessions.remove(id) {
         stop_off_thread(session).await;
     }
