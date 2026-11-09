@@ -5,18 +5,28 @@
   import { onMount } from "svelte";
   import {
     closeTerminal,
+    openShell,
     resizeTerminal,
     runScript,
     stopTerminal,
     writeTerminal,
+    type TerminalHandlers,
   } from "../ipc/terminal";
+  import type { ShellSession } from "../ipc/types";
   import { projectIndexFor, shortcutFor, shortcutLabel } from "../keyboard";
+  import type { Launch } from "../terminal/launch";
   import { statusText, statusTone, type TerminalStatus } from "../terminal/status";
+
+  /**
+   * How long a shell's output must stay quiet before its prompt counts as ready, for shells
+   * that never turn on bracketed paste mode (see `watchPrompt`).
+   */
+  const PROMPT_QUIET_MS = 1000;
 
   interface Props {
     projectRoot: string;
-    packageDir: string;
-    script: string;
+    /** Fixed for the tab's lifetime; restart launches the same thing again. */
+    launch: Launch;
     label: string;
     /**
      * Only the active tab of the selected project is visible; hidden tabs keep running and
@@ -26,7 +36,8 @@
     onStatus: (status: TerminalStatus) => void;
   }
 
-  let { projectRoot, packageDir, script, label, active, onStatus }: Props = $props();
+  let { projectRoot, launch, label, active, onStatus }: Props = $props();
+  const noun = $derived(launch.kind === "script" ? "script" : "shell");
 
   let status = $state<TerminalStatus>({ kind: "starting" });
   let container: HTMLDivElement;
@@ -84,29 +95,79 @@
       }
     }
 
+    // A shell tab may come with a command line to type at its first prompt. Typing it
+    // earlier would make the kernel echo it and the line editor draw it a second time.
+    let prefill: string | null = null;
+    let promptReady = false;
+    let promptTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function typePrefill() {
+      if (!promptReady || prefill === null || sessionId === null) return;
+      void writeTerminal(sessionId, prefill);
+      prefill = null;
+    }
+
+    function markPromptReady() {
+      clearTimeout(promptTimer);
+      promptReady = true;
+      typePrefill();
+    }
+
+    // Runs after xterm.js has parsed each output chunk. Line editors (bash 5.1+, zsh, fish)
+    // turn on bracketed paste mode right when they start reading the prompt. Shells without
+    // one (sh, dash) never do; for them the prompt counts as ready once output has been
+    // quiet for PROMPT_QUIET_MS, which is inherently a timed guess.
+    function watchPrompt() {
+      if (launch.kind !== "shell" || promptReady) return;
+      if (terminal.modes.bracketedPasteMode) {
+        markPromptReady();
+        return;
+      }
+      clearTimeout(promptTimer);
+      promptTimer = setTimeout(markPromptReady, PROMPT_QUIET_MS);
+    }
+
+    function spawn(handlers: TerminalHandlers): Promise<ShellSession> {
+      const size = { cols: terminal.cols, rows: terminal.rows };
+      switch (launch.kind) {
+        case "script":
+          return runScript(projectRoot, launch.packageDir, launch.script, size, handlers).then(
+            (id) => ({ id, prefill: null }),
+          );
+        case "shell":
+          return openShell(projectRoot, launch.packageDir, launch.prefillScript, size, handlers);
+        default: {
+          const unreachable: never = launch;
+          return unreachable;
+        }
+      }
+    }
+
     function start() {
       const current = ++run;
       status = { kind: "starting" };
-      runScript(
-        projectRoot,
-        packageDir,
-        script,
-        { cols: terminal.cols, rows: terminal.rows },
-        {
-          onOutput: (data) => {
-            if (current === run) terminal.write(data);
-          },
-          onExit: (info) => {
-            if (current === run) status = { kind: "exited", info };
-          },
+      prefill = null;
+      promptReady = false;
+      clearTimeout(promptTimer);
+      spawn({
+        onOutput: (data) => {
+          if (current === run)
+            terminal.write(data, () => {
+              if (current === run) watchPrompt();
+            });
         },
-      ).then(
-        (id) => {
+        onExit: (info) => {
+          if (current === run) status = { kind: "exited", info };
+        },
+      }).then(
+        (session) => {
           if (disposed || current !== run) {
-            void closeTerminal(id);
+            void closeTerminal(session.id);
             return;
           }
-          sessionId = id;
+          sessionId = session.id;
+          prefill = session.prefill;
+          typePrefill();
           if (status.kind === "starting") status = { kind: "running" };
         },
         (err) => {
@@ -151,6 +212,7 @@
 
     return () => {
       disposed = true;
+      clearTimeout(promptTimer);
       observer.disconnect();
       input.dispose();
       if (sessionId !== null) void closeTerminal(sessionId);
@@ -172,14 +234,16 @@
       <button
         onclick={() => stop()}
         disabled={status.kind !== "running"}
-        title={`Stop the script and every process it started (${shortcutLabel("stop-tab")})`}
+        title={`Stop the ${noun} and every process it started (${shortcutLabel("stop-tab")})`}
       >
         ■ Stop
       </button>
       <button
         onclick={() => restart()}
         disabled={busy}
-        title={`Stop and run the script again (${shortcutLabel("restart-tab")})`}
+        title={launch.kind === "script"
+          ? `Stop and run the script again (${shortcutLabel("restart-tab")})`
+          : `Stop and open a new shell (${shortcutLabel("restart-tab")})`}
       >
         ↻ Restart
       </button>

@@ -3,6 +3,7 @@
   import { openProject, pickFolder } from "../ipc/project";
   import type { Package, Project } from "../ipc/types";
   import { shortcutFor, shortcutLabel, type Action } from "../keyboard";
+  import { launchLabel, type Launch } from "../terminal/launch";
   import { summarize, type StatusSummary, type TerminalStatus } from "../terminal/status";
   import ErrorLine from "./ErrorLine.svelte";
   import ScriptList from "./ScriptList.svelte";
@@ -37,40 +38,46 @@
   );
 
   interface Tab extends TabInfo {
-    packageDir: string;
-    script: string;
+    launch: Launch;
   }
 
-  // One tab per running (or finished) script. Removing a tab unmounts its terminal, which
-  // stops the script's process tree.
+  // One tab per running (or finished) script, plus any number of shell tabs. Removing a tab
+  // unmounts its terminal, which stops its process tree.
   let tabs = $state<Tab[]>([]);
   let activeKey = $state<number | null>(null);
   let nextKey = 0;
   const panels: Record<number, TerminalPanel> = {};
 
-  function newTab(pkg: Package, script: string): Tab {
+  function newTab(launch: Launch): Tab {
     nextKey += 1;
-    const owner = pkg.name ?? (pkg.relativeDir || project.name);
-    return {
-      key: nextKey,
-      packageDir: pkg.relativeDir,
-      script,
-      label: `${owner} › ${script}`,
-      status: { kind: "starting" },
-    };
+    const pkg = project.packages.find((p) => p.relativeDir === launch.packageDir);
+    const owner = pkg?.name ?? (launch.packageDir || project.name);
+    return { key: nextKey, launch, label: launchLabel(owner, launch), status: { kind: "starting" } };
   }
 
   /** ▶: focus the script's tab if it is still running, otherwise run it in a fresh tab. */
   function start(pkg: Package, script: string) {
-    const index = tabs.findIndex((t) => t.packageDir === pkg.relativeDir && t.script === script);
+    const index = tabs.findIndex(
+      (t) => t.launch.kind === "script" && t.launch.packageDir === pkg.relativeDir && t.launch.script === script,
+    );
     const existing = tabs[index];
     if (existing && (existing.status.kind === "starting" || existing.status.kind === "running")) {
       activeKey = existing.key;
       return;
     }
-    const tab = newTab(pkg, script);
+    const tab = newTab({ kind: "script", packageDir: pkg.relativeDir, script });
     if (existing) tabs[index] = tab;
     else tabs.push(tab);
+    activeKey = tab.key;
+  }
+
+  /**
+   * Opens the user's shell in a new tab, in the package folder (empty: the project root).
+   * With `script`, its command line is typed at the prompt for the user to add arguments.
+   */
+  function openShellTab(packageDir: string, script: string | null = null) {
+    const tab = newTab({ kind: "shell", packageDir, prefillScript: script });
+    tabs.push(tab);
     activeKey = tab.key;
   }
 
@@ -109,7 +116,9 @@
 
   function onFilterKeydown(event: KeyboardEvent) {
     if (event.key === "Enter" && firstVisible?.scripts[0]) {
-      start(firstVisible, firstVisible.scripts[0].name);
+      // Shift+Enter: type the command in a shell instead, to add arguments before running.
+      if (event.shiftKey) openShellTab(firstVisible.relativeDir, firstVisible.scripts[0].name);
+      else start(firstVisible, firstVisible.scripts[0].name);
     } else if (event.key === "Escape") {
       query = "";
       filterInput.blur();
@@ -141,6 +150,9 @@
       case "stop-tab":
         void panel?.stopScript();
         return;
+      case "open-shell":
+        openShellTab("");
+        return;
       default: {
         const unreachable: never = action;
         return unreachable;
@@ -166,7 +178,13 @@
         <strong>{project.name}</strong>
         <span class="muted">{project.packageManager}</span>
       </div>
-      <button onclick={onClose} title="Close the project and stop its scripts">Close</button>
+      <div class="header-actions">
+        <button
+          onclick={() => openShellTab("")}
+          title={`Open a terminal in the project folder (${shortcutLabel("open-shell")})`}>Terminal</button
+        >
+        <button onclick={onClose} title="Close the project and stop its scripts">Close</button>
+      </div>
     </header>
     {#if openError}
       <ErrorLine message={openError} onDismiss={() => (openError = null)} />
@@ -193,7 +211,7 @@
     {#if visible.length === 0}
       <p class="no-match muted">No scripts match “{query}”.</p>
     {:else}
-      <ScriptList packages={visible} onRun={start} />
+      <ScriptList packages={visible} onRun={start} onShell={(pkg, script) => openShellTab(pkg.relativeDir, script)} />
     {/if}
   </aside>
   <main class:with-tabs={tabs.length > 0}>
@@ -205,8 +223,7 @@
             <TerminalPanel
               bind:this={panels[tab.key]}
               projectRoot={project.root}
-              packageDir={tab.packageDir}
-              script={tab.script}
+              launch={tab.launch}
               label={tab.label}
               active={active && tab.key === activeKey}
               onStatus={(status) => setStatus(tab.key, status)}
@@ -215,7 +232,7 @@
         {/each}
       </div>
     {:else}
-      <p class="placeholder muted">Pick a script to run it here.</p>
+      <p class="placeholder muted">Pick a script to run it here, or open a terminal.</p>
     {/if}
   </main>
 </div>
@@ -242,6 +259,11 @@
     gap: 0.5rem;
     padding: 0.6rem 0.75rem;
     border-bottom: 1px solid var(--border);
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 0.35rem;
   }
 
   .title {

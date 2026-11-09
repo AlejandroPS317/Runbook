@@ -4,9 +4,11 @@
   interface Props {
     packages: Package[];
     onRun: (pkg: Package, script: string) => void;
+    /** Opens a shell in the package folder; with `script`, its command is typed at the prompt. */
+    onShell: (pkg: Package, script: string | null) => void;
   }
 
-  let { packages, onRun }: Props = $props();
+  let { packages, onRun, onShell }: Props = $props();
 
   const declared = $derived(packages.filter((p) => p.role !== "unlisted"));
   const unlisted = $derived(packages.filter((p) => p.role === "unlisted"));
@@ -37,6 +39,12 @@
       <header>
         <span class="name">{title(pkg)}</span>
         <span class="dir" title={roleLabel(pkg.role)}>{pkg.relativeDir || "."}</span>
+        <button
+          class="shell"
+          title={`Open a terminal in ${pkg.relativeDir || "the project folder"}`}
+          aria-label={`Open a terminal in ${title(pkg)}`}
+          onclick={() => onShell(pkg, null)}>&gt;_</button
+        >
       </header>
       {#if pkg.scripts.length === 0}
         <p class="empty">No scripts</p>
@@ -51,6 +59,12 @@
                 onclick={() => onRun(pkg, script.name)}>▶</button
               >
               <span class="script" title={script.command}>{script.name}</span>
+              <button
+                class="shell"
+                title="Open in a terminal with the command typed, to add arguments"
+                aria-label={`Open ${script.name} in a terminal in ${title(pkg)}`}
+                onclick={() => onShell(pkg, script.name)}>&gt;_</button
+              >
             </li>
           {/each}
         </ul>
@@ -139,11 +153,36 @@
   }
 
   .script {
+    flex: 1;
+    min-width: 0;
     font-family: var(--mono);
     font-size: 0.85rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* Shown on hover or keyboard focus, so the list stays as quiet as a plain script list. */
+  .shell {
+    margin-left: auto;
+    padding: 0.05rem 0.35rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: transparent;
+    border-color: transparent;
+    opacity: 0;
+  }
+
+  header:hover .shell,
+  li:hover .shell,
+  .shell:focus-visible {
+    opacity: 1;
+  }
+
+  .shell:hover {
+    color: var(--text);
+    border-color: var(--border);
   }
 
   .empty {

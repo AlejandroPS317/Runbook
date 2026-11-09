@@ -8,7 +8,8 @@ export type Action =
   | "previous-tab"
   | "close-tab"
   | "restart-tab"
-  | "stop-tab";
+  | "stop-tab"
+  | "open-shell";
 
 export const isMac = navigator.userAgent.includes("Mac");
 
@@ -37,6 +38,9 @@ export function shortcutFor(event: KeyboardEvent): Action | null {
     // K for "kill": Ctrl+Shift+S is grabbed by some Linux desktops before the app sees it.
     case "KeyK":
       return "stop-tab";
+    // T for "terminal", as in terminal emulators' "new tab".
+    case "KeyT":
+      return "open-shell";
     default:
       return null;
   }
@@ -81,6 +85,8 @@ export function shortcutLabel(action: Action): string {
       return `${mod}${shift}R`;
     case "stop-tab":
       return `${mod}${shift}K`;
+    case "open-shell":
+      return `${mod}${shift}T`;
     default: {
       const unreachable: never = action;
       return unreachable;

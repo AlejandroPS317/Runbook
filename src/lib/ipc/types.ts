@@ -1,4 +1,5 @@
-// Mirrors the DTOs in src-tauri/src/project.rs and src-tauri/src/terminal.rs.
+// Mirrors the DTOs in src-tauri/src/project.rs, src-tauri/src/terminal.rs and
+// src-tauri/src/shell.rs.
 
 export type PackageRole = "root" | "member" | "unlisted";
 
@@ -44,6 +45,13 @@ export interface ExitInfo {
 export interface TerminalSize {
   cols: number;
   rows: number;
+}
+
+/** Mirrors `ShellDto` in src-tauri/src/shell.rs. */
+export interface ShellSession {
+  id: number;
+  /** Command line to type at the first prompt, without a newline; `null` for a bare shell. */
+  prefill: string | null;
 }
 
 /** Mirrors `UpdateInfo` in src-tauri/src/updates.rs. */

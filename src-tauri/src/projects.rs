@@ -17,9 +17,9 @@ pub fn root_key(discovery: &Discovery) -> String {
     discovery.root.display().to_string()
 }
 
-/// Where and how to run one script.
+/// Where and how to run commands for one package.
 #[derive(Debug, PartialEq, Eq)]
-pub struct ScriptTarget {
+pub struct PackageTarget {
     pub cwd: PathBuf,
     pub package_manager: PackageManager,
 }
@@ -69,7 +69,26 @@ impl OpenProjects {
         root: &str,
         package_dir: &str,
         script: &str,
-    ) -> Result<ScriptTarget, CommandError> {
+    ) -> Result<PackageTarget, CommandError> {
+        self.lookup(root, package_dir, Some(script))
+    }
+
+    /// The folder of the package at `package_dir` of the open project. An empty
+    /// `package_dir` is the project root, even when the root has no `package.json`.
+    pub fn resolve_package(
+        &self,
+        root: &str,
+        package_dir: &str,
+    ) -> Result<PackageTarget, CommandError> {
+        self.lookup(root, package_dir, None)
+    }
+
+    fn lookup(
+        &self,
+        root: &str,
+        package_dir: &str,
+        script: Option<&str>,
+    ) -> Result<PackageTarget, CommandError> {
         let projects = lock(&self.projects);
         let discovery = &projects
             .get(root)
@@ -78,16 +97,20 @@ impl OpenProjects {
         let package = discovery
             .packages
             .iter()
-            .find(|p| p.relative_dir == package_dir)
-            .ok_or_else(|| CommandError::PackageNotFound(package_dir.to_owned()))?;
-        if !package.scripts.iter().any(|s| s.name == script) {
-            return Err(CommandError::ScriptNotFound {
-                package: package_dir.to_owned(),
-                script: script.to_owned(),
-            });
-        }
-        Ok(ScriptTarget {
-            cwd: package.dir.clone(),
+            .find(|p| p.relative_dir == package_dir);
+        let cwd = match (package, script) {
+            (Some(package), Some(script)) if !package.scripts.iter().any(|s| s.name == script) => {
+                return Err(CommandError::ScriptNotFound {
+                    package: package_dir.to_owned(),
+                    script: script.to_owned(),
+                });
+            }
+            (Some(package), _) => package.dir.clone(),
+            (None, None) if package_dir.is_empty() => discovery.root.clone(),
+            (None, _) => return Err(CommandError::PackageNotFound(package_dir.to_owned())),
+        };
+        Ok(PackageTarget {
+            cwd,
             package_manager: discovery.package_manager,
         })
     }
@@ -157,6 +180,32 @@ mod tests {
         assert!(matches!(
             projects.resolve(&pnpm, "apps/web", "no-such-script"),
             Err(CommandError::ScriptNotFound { .. })
+        ));
+    }
+
+    #[test]
+    fn packages_resolve_to_their_folder_without_a_script() {
+        let (projects, pnpm, npm) = two_projects();
+        let target = projects.resolve_package(&pnpm, "apps/web").unwrap();
+        assert!(target.cwd.ends_with("apps/web"));
+        assert_eq!(target.package_manager, PackageManager::Pnpm);
+        assert!(matches!(
+            projects.resolve_package(&npm, "apps/web"),
+            Err(CommandError::PackageNotFound(_))
+        ));
+    }
+
+    #[test]
+    fn the_root_resolves_even_without_a_root_package() {
+        let projects = OpenProjects::default();
+        let mut discovery = fixture("pnpm-turbo-monorepo");
+        discovery.packages.retain(|p| !p.relative_dir.is_empty());
+        let root = projects.open(discovery);
+        let target = projects.resolve_package(&root, "").unwrap();
+        assert_eq!(target.cwd.display().to_string(), root);
+        assert!(matches!(
+            projects.resolve(&root, "", "dev"),
+            Err(CommandError::PackageNotFound(_))
         ));
     }
 
