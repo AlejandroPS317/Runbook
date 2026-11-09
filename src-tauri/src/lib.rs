@@ -45,7 +45,10 @@ pub fn run() {
     app.run(|handle, event| {
         if let RunEvent::Exit = event {
             // Stop every script and its process tree before the app process exits.
-            terminal::stop_all(&handle.state::<AppState>());
+            handle
+                .state::<AppState>()
+                .sessions
+                .stop_all(runbook_process::DEFAULT_GRACE);
         }
     });
 }

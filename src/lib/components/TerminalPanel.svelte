@@ -10,50 +10,31 @@
     stopTerminal,
     writeTerminal,
   } from "../ipc/terminal";
-  import type { ExitInfo } from "../ipc/types";
+  import { statusText, statusTone, type TerminalStatus } from "../terminal/status";
 
   interface Props {
     packageDir: string;
     script: string;
     label: string;
+    /** Only the active tab is visible; hidden tabs keep running and keep their output. */
+    active: boolean;
+    onStatus: (status: TerminalStatus) => void;
   }
 
-  let { packageDir, script, label }: Props = $props();
+  let { packageDir, script, label, active, onStatus }: Props = $props();
 
-  type Status =
-    | { kind: "starting" }
-    | { kind: "running" }
-    | { kind: "stopping" }
-    | { kind: "exited"; info: ExitInfo }
-    | { kind: "failed"; message: string };
-
-  let status = $state<Status>({ kind: "starting" });
+  let status = $state<TerminalStatus>({ kind: "starting" });
   let container: HTMLDivElement;
 
-  // Set in onMount; the buttons only exist after mount.
+  // Set in onMount; the buttons and the active effect only run after mount.
   let restart: () => Promise<void> = async () => {};
   let stop: () => Promise<void> = async () => {};
+  let show: () => void = () => {};
 
-  function statusText(current: Status): string {
-    switch (current.kind) {
-      case "starting":
-        return "Starting…";
-      case "running":
-        return "Running";
-      case "stopping":
-        return "Stopping…";
-      case "exited":
-        return current.info.signal
-          ? `Stopped (${current.info.signal})`
-          : `Exited with code ${current.info.code}`;
-      case "failed":
-        return current.message;
-      default: {
-        const unreachable: never = current;
-        return unreachable;
-      }
-    }
-  }
+  $effect(() => onStatus(status));
+  $effect(() => {
+    if (active) show();
+  });
 
   onMount(() => {
     const terminal = new Terminal({
@@ -72,6 +53,17 @@
     let disposed = false;
     // Incremented on every start; events from an older run are ignored.
     let run = 0;
+
+    // Hidden tabs have no size: fitting them would shrink the PTY to a few columns.
+    function refit() {
+      if (container.offsetWidth === 0 || container.offsetHeight === 0) return;
+      const before = { cols: terminal.cols, rows: terminal.rows };
+      fit.fit();
+      const after = { cols: terminal.cols, rows: terminal.rows };
+      if (sessionId !== null && (before.cols !== after.cols || before.rows !== after.rows)) {
+        void resizeTerminal(sessionId, after);
+      }
+    }
 
     function start() {
       const current = ++run;
@@ -120,21 +112,22 @@
       start();
     };
 
+    show = () => {
+      // Wait for the browser to lay out the now-visible panel before measuring it.
+      requestAnimationFrame(() => {
+        if (disposed) return;
+        refit();
+        terminal.focus();
+      });
+    };
+
     const input = terminal.onData((data) => {
       if (sessionId !== null) void writeTerminal(sessionId, data);
     });
-
-    // Refit when the panel changes size; only tell the PTY when the grid really changed.
-    const observer = new ResizeObserver(() => {
-      const before = { cols: terminal.cols, rows: terminal.rows };
-      fit.fit();
-      const after = { cols: terminal.cols, rows: terminal.rows };
-      if (sessionId !== null && (before.cols !== after.cols || before.rows !== after.rows)) {
-        void resizeTerminal(sessionId, after);
-      }
-    });
+    const observer = new ResizeObserver(refit);
     observer.observe(container);
     start();
+    if (active) show();
 
     return () => {
       disposed = true;
@@ -146,20 +139,21 @@
   });
 
   const busy = $derived(status.kind === "starting" || status.kind === "stopping");
+  const tone = $derived(statusTone(status));
 </script>
 
 <section class="panel">
   <header>
     <span class="label">{label}</span>
-    <span
-      class="status"
-      class:ok={status.kind === "running"}
-      class:bad={status.kind === "failed" || (status.kind === "exited" && status.info.code !== 0)}
-    >
+    <span class="status" class:ok={status.kind === "running"} class:bad={tone === "error"}>
       {statusText(status)}
     </span>
     <div class="actions">
-      <button onclick={() => stop()} disabled={status.kind !== "running"} title="Stop the script and every process it started">
+      <button
+        onclick={() => stop()}
+        disabled={status.kind !== "running"}
+        title="Stop the script and every process it started"
+      >
         ■ Stop
       </button>
       <button onclick={() => restart()} disabled={busy} title="Stop and run the script again">

@@ -2,15 +2,16 @@
 //! Mirrors `src/lib/ipc/terminal.ts`.
 
 use std::sync::Arc;
-use std::thread;
 
-use runbook_process::{DEFAULT_GRACE, Session, SessionEvent, SpawnOptions, TerminalSize};
+use runbook_process::{
+    DEFAULT_GRACE, Session, SessionEvent, SessionId, SpawnOptions, TerminalSize,
+};
 use serde::Serialize;
 use tauri::State;
 use tauri::ipc::{Channel, InvokeResponseBody};
 
 use crate::error::CommandError;
-use crate::state::{AppState, SessionId, lock};
+use crate::state::{AppState, lock};
 
 #[derive(Serialize, Clone)]
 pub struct ExitDto {
@@ -70,9 +71,7 @@ pub async fn run_script(
         }
     })?;
 
-    let id = state.next_session_id();
-    lock(&state.sessions).insert(id, Arc::new(session));
-    Ok(id)
+    Ok(state.sessions.insert(Arc::new(session)))
 }
 
 /// Sends keyboard input typed in the terminal.
@@ -109,30 +108,17 @@ pub async fn stop_terminal(id: SessionId, state: State<'_, AppState>) -> Result<
 /// Stops the script (if still running) and forgets the session.
 #[tauri::command]
 pub async fn close_terminal(id: SessionId, state: State<'_, AppState>) -> Result<(), CommandError> {
-    let removed = lock(&state.sessions).remove(&id);
-    if let Some(session) = removed {
+    if let Some(session) = state.sessions.remove(id) {
         stop_off_thread(session).await;
     }
     Ok(())
 }
 
-/// Stops every session in parallel and waits for all of them. Used when the app exits.
-pub fn stop_all(state: &AppState) {
-    let sessions: Vec<Arc<Session>> = lock(&state.sessions).drain().map(|(_, s)| s).collect();
-    let stoppers: Vec<_> = sessions
-        .into_iter()
-        .map(|session| thread::spawn(move || session.stop(DEFAULT_GRACE)))
-        .collect();
-    for stopper in stoppers {
-        let _ = stopper.join();
-    }
-}
-
-/// Clones the session out of the map so no lock is held while it is used.
+/// Clones the session out of the manager so no lock is held while it is used.
 fn session(state: &AppState, id: SessionId) -> Result<Arc<Session>, CommandError> {
-    lock(&state.sessions)
-        .get(&id)
-        .cloned()
+    state
+        .sessions
+        .get(id)
         .ok_or(CommandError::SessionNotFound(id))
 }
 
