@@ -18,28 +18,85 @@ system webview instead of bundling a browser.
 
 ## Status
 
-Early development; nothing is usable yet. Linux is the primary platform, with macOS and
-Windows following. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones and
-per-platform status.
+**v0.1.0 (pre-release).** The v1 feature set is complete and tested on Linux, the primary
+platform. macOS and Windows builds pass the full test suite in CI but have not been run on
+real machines yet. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for per-platform status.
 
 ## Install
 
-Installers are built by the [Release workflow](.github/workflows/release.yml) for every
-`v*` tag (and attached to a draft GitHub release):
+**Requirements:** Node.js with npm or pnpm, as you already use for your projects. Runbook
+runs your scripts with them; nvm, fnm, volta and corepack setups are found automatically.
 
-| OS      | Files                                   |
-| ------- | --------------------------------------- |
-| Linux   | `.deb` (Debian/Ubuntu), `.AppImage` (any distribution, no install needed) |
-| macOS   | `.dmg`                                  |
-| Windows | `.msi` and setup `.exe`                 |
+Download the installer for your system from
+[Releases](https://github.com/AlejandroPS317/Runbook/releases). The repository is private
+for now: sign in to GitHub in the browser, or use the commands below with the
+[GitHub CLI](https://cli.github.com) (run `gh auth login` once). Replace `v0.1.0` with the
+version you want.
 
-The installers are not code-signed yet: macOS Gatekeeper and Windows SmartScreen warn on
-first launch. On macOS, right-click the app and choose **Open**; on Windows, choose
-**More info → Run anyway**.
+### macOS (Apple Silicon)
 
-The `.deb` needs only the system WebKitGTK and GTK (`libwebkit2gtk-4.1-0`, `libgtk-3-0`),
-which the package manager installs. Build them locally with
-`pnpm tauri build --bundles deb,appimage`.
+```sh
+gh release download v0.1.0 -R AlejandroPS317/Runbook -p '*.dmg' -D ~/Downloads
+hdiutil attach -nobrowse -mountpoint /tmp/runbook-dmg ~/Downloads/Runbook_*_aarch64.dmg
+cp -R /tmp/runbook-dmg/Runbook.app /Applications/
+hdiutil detach /tmp/runbook-dmg
+xattr -dr com.apple.quarantine /Applications/Runbook.app
+open /Applications/Runbook.app
+```
+
+The `xattr` line is needed because Runbook is not notarized by Apple yet: without it macOS
+says the app "is damaged" or "cannot be verified". Intel Macs are not supported yet
+(check with `uname -m`: `arm64` is Apple Silicon).
+
+### Linux: Debian, Ubuntu, Zorin, Mint…
+
+```sh
+gh release download v0.1.0 -R AlejandroPS317/Runbook -p '*.deb'
+sudo apt install ./Runbook_*_amd64.deb
+```
+
+Open **Runbook** from the applications menu, or run `runbook` (optionally with a folder:
+`runbook ~/code/my-project`).
+
+### Linux: any distribution (AppImage, no install)
+
+```sh
+gh release download v0.1.0 -R AlejandroPS317/Runbook -p '*.AppImage'
+chmod +x Runbook_*_amd64.AppImage
+./Runbook_*_amd64.AppImage
+```
+
+### Windows
+
+In PowerShell:
+
+```powershell
+gh release download v0.1.0 -R AlejandroPS317/Runbook -p '*-setup.exe'
+.\Runbook_0.1.0_x64-setup.exe
+```
+
+Windows SmartScreen warns because the installer is not signed yet: choose
+**More info → Run anyway**. An `.msi` is also available for managed installs.
+
+### Uninstall
+
+- macOS: delete `/Applications/Runbook.app`.
+- Debian/Ubuntu: `sudo apt remove runbook`.
+- AppImage: delete the file.
+- Windows: Settings → Apps → Installed apps → Runbook → Uninstall.
+
+Your recent projects list lives in the app data folder
+(`~/.local/share/io.github.alejandrops317.runbook` on Linux,
+`~/Library/Application Support/io.github.alejandrops317.runbook` on macOS,
+`%APPDATA%\io.github.alejandrops317.runbook` on Windows).
+
+### Building the installers
+
+The [Release workflow](.github/workflows/release.yml) builds every installer for each
+`v*` tag and attaches them to a draft GitHub release. Locally, run
+`pnpm tauri build --bundles deb,appimage` (Linux), `app,dmg` (macOS) or `msi,nsis`
+(Windows). macOS builds are ad-hoc signed (`signingIdentity: "-"`), which Apple Silicon
+needs for downloaded apps; real signing and notarization need an Apple Developer account.
 
 ### Memory use
 
