@@ -90,7 +90,9 @@
             {active}
             onClose={() => close(project.root)}
             onOpen={open}
-            onSummary={(summary) => (summaries[project.root] = summary)}
+            onSummary={(summary) => {
+              summaries[project.root] = summary;
+            }}
           />
         </div>
       {/each}
