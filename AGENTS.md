@@ -45,8 +45,10 @@ window belongs in a crate, not in `src-tauri`.
 
 ## Workflow
 
-- **One change per branch.** Work in a dedicated branch, ideally a git worktree:
-  `git worktree add ../Runbook-<branch> -b <branch>`.
+- **One change per branch, one checkout.** Work in the single `Runbook` checkout and switch
+  branches there (`git switch -c <branch> origin/main`). Do not create git worktrees or
+  other copies of the repository: the user keeps one working folder. Commit or stash before
+  switching, and leave untracked files you did not create alone.
 - **Branch names**: `m<N>/<topic>` for milestone work (`m1/discovery-walk`),
   otherwise `feat/`, `fix/`, `docs/`, `ci/`, `chore/`.
 - **Exclusive file ownership.** Before editing, check open branches and PRs; when another
