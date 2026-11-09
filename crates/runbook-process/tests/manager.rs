@@ -65,6 +65,63 @@ mod unix {
         );
     }
 
+    /// Closing one project stops only that project's sessions: their trees are gone and the
+    /// other sessions keep running.
+    #[test]
+    fn stop_many_stops_only_the_given_sessions() {
+        let manager = SessionManager::default();
+        let tmp = tempfile::tempdir().unwrap();
+        let mut sessions = Vec::new();
+        for i in 0..3 {
+            let dir = tmp.path().join(format!("s{i}"));
+            fs::create_dir(&dir).unwrap();
+            let script = "sleep 300 & echo $! > child; echo ready; wait";
+            let (session, rx) = start(options("sh", &["-c", script], &dir));
+            wait_for_output(&rx, "ready");
+            let child: u32 = fs::read_to_string(dir.join("child"))
+                .unwrap()
+                .trim()
+                .parse()
+                .unwrap();
+            let pids = vec![session.pid().unwrap(), child];
+            sessions.push((manager.insert(session), pids, rx));
+        }
+        let (closed, kept) = sessions.split_at(2);
+
+        let ids: Vec<_> = closed.iter().map(|(id, _, _)| *id).collect();
+        let outcomes = manager.stop_many(&ids, Duration::from_millis(500));
+
+        assert_eq!(outcomes.len(), 2);
+        assert_eq!(manager.len(), 1);
+        assert!(ids.iter().all(|&id| manager.get(id).is_none()));
+        let closed_pids: Vec<u32> = closed.iter().flat_map(|(_, p, _)| p.clone()).collect();
+        assert!(
+            eventually(Duration::from_secs(3), || closed_pids
+                .iter()
+                .all(|&p| !alive(p))),
+            "survivors: {:?}",
+            closed_pids
+                .iter()
+                .filter(|&&p| alive(p))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            kept[0].1.iter().all(|&p| alive(p)),
+            "the other session was stopped"
+        );
+        manager.stop_all(Duration::from_millis(500));
+    }
+
+    #[test]
+    fn stop_many_ignores_unknown_ids() {
+        let manager = SessionManager::default();
+        assert!(
+            manager
+                .stop_many(&[42], Duration::from_millis(100))
+                .is_empty()
+        );
+    }
+
     #[test]
     fn ids_are_unique_and_removal_forgets_the_session() {
         let manager = SessionManager::default();
