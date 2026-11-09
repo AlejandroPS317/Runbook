@@ -138,8 +138,9 @@ Runbook competes with IDEs on RAM, so resource use is a feature:
   process at 100% CPU, never navigates (inspector shows `about:blank`) and paints nothing
   when the OpenDyslexic WOFF fonts in `/usr/share/fonts/woff` (package
   `fonts-opendyslexic`, preinstalled on Zorin OS) are visible to fontconfig. It affects
-  every WebKitGTK app, not just Runbook. Fix and diagnosis are in the README
-  troubleshooting section. GPU-related glitches (mostly NVIDIA) are a separate cause,
+  every WebKitGTK app. Runbook works around it at startup (`src-tauri/src/fonts.rs`,
+  ADR 0006); fontconfig only applies `<glob>` patterns that start with `/`. Diagnosis is in
+  the README troubleshooting section. GPU-related glitches (mostly NVIDIA) are a separate cause,
   worked around with `WEBKIT_DISABLE_DMABUF_RENDERER=1`; document any workaround where it
   is applied.
 - **xterm.js** is published as `@xterm/xterm` and `@xterm/addon-*`; the unscoped `xterm`

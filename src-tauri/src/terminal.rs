@@ -11,6 +11,7 @@ use tauri::State;
 use tauri::ipc::{Channel, InvokeResponseBody};
 
 use crate::error::CommandError;
+use crate::fonts;
 use crate::state::{AppState, lock};
 
 #[derive(Serialize, Clone)]
@@ -55,7 +56,7 @@ pub async fn run_script(
         program: manager.command().to_owned(),
         args: vec!["run".to_owned(), script],
         cwd,
-        env: state.environment().clone(),
+        env: script_environment(&state),
         size: TerminalSize { rows, cols },
     };
     let session = Session::spawn(options, move |event| match event {
@@ -112,6 +113,13 @@ pub async fn close_terminal(id: SessionId, state: State<'_, AppState>) -> Result
         stop_off_thread(session).await;
     }
     Ok(())
+}
+
+/// The login-shell environment, without Runbook's own font workaround (ADR 0006).
+fn script_environment(state: &AppState) -> runbook_process::Environment {
+    let mut env = state.environment().clone();
+    fonts::scrub(&mut env);
+    env
 }
 
 /// Clones the session out of the manager so no lock is held while it is used.

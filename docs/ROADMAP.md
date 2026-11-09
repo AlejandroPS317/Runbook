@@ -98,10 +98,10 @@ manager, and finds no surviving processes.
 - Recent projects (bounded list, stored locally), script search filter, keyboard
   shortcuts.
 - Installers: AppImage and deb (Linux), dmg (macOS), msi/exe (Windows).
-- Measure idle RAM with a project open and record it in the README.
-- Decide (ADR) whether installed builds should mitigate the WebKitGTK hang caused by
-  OpenDyslexic WOFF fonts on Linux themselves (see the README troubleshooting section), so
-  Zorin OS users do not get a blank window.
+- Measure idle RAM with a project open and record it in the README (done: ~241 MiB PSS on
+  Linux).
+- Mitigate the WebKitGTK hang caused by WOFF fonts on Linux in the app itself (done:
+  [ADR 0006](decisions/0006-linux-woff-font-workaround.md)).
 
 Accepted per platform when its installer installs and runs on a clean machine without
 extra setup.
