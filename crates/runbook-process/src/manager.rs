@@ -45,6 +45,15 @@ impl SessionManager {
         self.len() == 0
     }
 
+    /// Sessions whose script is still running; finished sessions stay registered until their
+    /// tab closes, so this can be lower than `len`.
+    pub fn running(&self) -> usize {
+        lock(&self.sessions)
+            .values()
+            .filter(|s| !s.has_exited())
+            .count()
+    }
+
     /// Stops every session (script and process tree) in parallel and waits for all of
     /// them, so the slowest session bounds the total time (about `grace` plus the kill
     /// wait). The manager is empty afterwards.

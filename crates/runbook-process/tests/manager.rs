@@ -80,6 +80,21 @@ mod unix {
         assert!(manager.get(id_b).is_some());
         manager.stop_all(Duration::from_millis(500));
     }
+
+    #[test]
+    fn running_counts_only_sessions_whose_script_has_not_exited() {
+        let manager = SessionManager::default();
+        let tmp = tempfile::tempdir().unwrap();
+        let (done, _rx_done) = start(options("sh", &["-c", "exit 0"], tmp.path()));
+        let (busy, _rx_busy) = start(options("sh", &["-c", "sleep 300"], tmp.path()));
+        manager.insert(done.clone());
+        manager.insert(busy);
+        assert!(eventually(Duration::from_secs(3), || done.has_exited()));
+        assert_eq!(manager.len(), 2);
+        assert_eq!(manager.running(), 1);
+        manager.stop_all(Duration::from_millis(500));
+        assert_eq!(manager.running(), 0);
+    }
 }
 
 #[cfg(windows)]
