@@ -50,7 +50,27 @@
     overflow-x: auto;
     background: var(--bg);
     border-bottom: 1px solid var(--border);
-    scrollbar-width: thin;
+  }
+
+  /* macOS WKWebView draws an overlay scrollbar that widens on hover and paints over the
+     tab labels. A styled ::-webkit-scrollbar is a classic scrollbar with its own fixed
+     strip below the tabs in WKWebView (macOS), WebKitGTK (Linux) and WebView2 (Windows).
+     Keep `scrollbar-width` unset: WebView2 ignores ::-webkit-scrollbar when it is set. */
+  .tabs::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .tabs::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .tabs::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+
+  .tabs::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
   }
 
   .tab {
