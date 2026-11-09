@@ -47,7 +47,7 @@ export function shortcutFor(event: KeyboardEvent): Action | null {
 }
 
 /**
- * The project (0-based position in the project bar) selected by Alt+1…9, or ⌘1…9 on macOS;
+ * The project (0-based position in the project switcher) selected by Alt+1…9, or ⌘1…9 on macOS;
  * `null` when the key is not a project shortcut. Matches `event.code`, so keyboard layouts
  * do not matter. Any other modifier cancels it: Windows reports AltGr as Ctrl+Alt, and
  * AltGr+digit types characters such as `@` on Spanish layouts.

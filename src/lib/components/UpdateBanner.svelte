@@ -50,8 +50,15 @@
     gap: 0.5rem;
     padding: 0.4rem 0.75rem;
     border-bottom: 1px solid var(--border);
-    background: var(--surface);
-    font-size: 0.9rem;
+    background: var(--accent-soft);
+  }
+
+  .banner.failed {
+    background: var(--danger-soft);
+  }
+
+  .banner button {
+    padding: 0.2rem 0.6rem;
   }
 
   .banner p {

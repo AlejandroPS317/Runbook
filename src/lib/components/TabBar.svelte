@@ -9,6 +9,8 @@
 </script>
 
 <script lang="ts">
+  import type { Snippet } from "svelte";
+  import { shortcutLabel } from "../keyboard";
   import { statusText, statusTone } from "../terminal/status";
 
   interface Props {
@@ -16,40 +18,72 @@
     activeKey: number | null;
     onSelect: (key: number) => void;
     onClose: (key: number) => void;
+    onNewShell: () => void;
+    /** Controls for the active tab, pinned to the right of the strip. */
+    actions?: Snippet;
   }
 
-  let { tabs, activeKey, onSelect, onClose }: Props = $props();
+  let { tabs, activeKey, onSelect, onClose, onNewShell, actions }: Props = $props();
+  const elements: Record<number, HTMLDivElement> = {};
+
+  $effect(() => {
+    if (activeKey !== null) elements[activeKey]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
 </script>
 
-<div class="tabs" role="tablist">
-  {#each tabs as tab (tab.key)}
-    <div class="tab" class:active={tab.key === activeKey}>
-      <button
-        class="select"
-        role="tab"
-        aria-selected={tab.key === activeKey}
-        title={`${tab.label} — ${statusText(tab.status)}`}
-        onclick={() => onSelect(tab.key)}
-      >
-        <span class="dot {statusTone(tab.status)}"></span>
-        <span class="label">{tab.label}</span>
-      </button>
-      <button
-        class="close"
-        aria-label={`Close ${tab.label} and stop its script`}
-        title="Close and stop"
-        onclick={() => onClose(tab.key)}>×</button
-      >
-    </div>
-  {/each}
+<div class="bar">
+  <div class="tabs" role="tablist">
+    {#each tabs as tab (tab.key)}
+      <div class="tab" class:active={tab.key === activeKey} bind:this={elements[tab.key]}>
+        <button
+          class="select"
+          role="tab"
+          aria-selected={tab.key === activeKey}
+          title={`${tab.label} — ${statusText(tab.status)}`}
+          onclick={() => onSelect(tab.key)}
+        >
+          <span class="dot {statusTone(tab.status)}"></span>
+          <span class="label">{tab.label}</span>
+        </button>
+        <button
+          class="close"
+          aria-label={`Close ${tab.label} and stop its script`}
+          title="Close and stop"
+          onclick={() => onClose(tab.key)}>×</button
+        >
+      </div>
+    {/each}
+    <button
+      class="new"
+      aria-label="Open a terminal in the project folder"
+      title={`Open a terminal in the project folder (${shortcutLabel("open-shell")})`}
+      onclick={onNewShell}>+</button
+    >
+  </div>
+  {#if actions}
+    <div class="actions">{@render actions()}</div>
+  {/if}
 </div>
 
 <style>
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0 0.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
   .tabs {
     display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0;
     overflow-x: auto;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
   }
 
   /* macOS WKWebView draws an overlay scrollbar that widens on hover and paints over the
@@ -78,31 +112,39 @@
     align-items: center;
     flex: 0 0 auto;
     max-width: 16rem;
-    border-right: 1px solid var(--border);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+  }
+
+  .tab:hover {
+    background: var(--hover);
   }
 
   .tab.active {
-    background: var(--surface);
-    box-shadow: inset 0 -2px 0 var(--accent);
+    background: var(--raised);
+    border-color: var(--border-strong);
   }
 
   button {
     border: none;
-    border-radius: 0;
+    background: transparent;
+  }
+
+  button:hover:not(:disabled) {
     background: transparent;
   }
 
   .select {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.45rem;
     min-width: 0;
-    padding: 0.4rem 0.25rem 0.4rem 0.75rem;
-    font-size: 0.85rem;
+    padding: 0.3rem 0.2rem 0.3rem 0.6rem;
   }
 
   .label {
     font-family: var(--mono);
+    font-size: 0.8rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -114,10 +156,10 @@
 
   .dot {
     flex: 0 0 auto;
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 0.45rem;
+    height: 0.45rem;
     border-radius: 50%;
-    background: var(--text-muted);
+    background: var(--text-faint);
   }
 
   .dot.active {
@@ -128,14 +170,28 @@
     background: var(--danger);
   }
 
-  .close {
-    padding: 0.2rem 0.5rem;
-    color: var(--text-muted);
+  .close,
+  .new {
+    padding: 0.15rem 0.45rem;
+    color: var(--text-faint);
     font-size: 1rem;
     line-height: 1;
   }
 
-  .close:hover {
+  .close:hover:not(:disabled),
+  .new:hover:not(:disabled) {
     color: var(--text);
+  }
+
+  .new {
+    flex: 0 0 auto;
+    border-radius: var(--radius);
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 0.35rem;
   }
 </style>

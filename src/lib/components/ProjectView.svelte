@@ -1,12 +1,17 @@
 <script lang="ts">
-  import { filterPackages } from "../filter";
   import { openProject, pickFolder } from "../ipc/project";
   import type { Package, Project } from "../ipc/types";
   import { shortcutFor, shortcutLabel, type Action } from "../keyboard";
   import { launchLabel, type Launch } from "../terminal/launch";
-  import { summarize, type StatusSummary, type TerminalStatus } from "../terminal/status";
-  import ErrorLine from "./ErrorLine.svelte";
-  import ScriptList from "./ScriptList.svelte";
+  import {
+    scriptState,
+    summarize,
+    type ScriptState,
+    type StatusSummary,
+    type TerminalStatus,
+  } from "../terminal/status";
+  import Sidebar from "./Sidebar.svelte";
+  import TabActions from "./TabActions.svelte";
   import TabBar, { type TabInfo } from "./TabBar.svelte";
   import TerminalPanel from "./TerminalPanel.svelte";
 
@@ -17,25 +22,15 @@
      * running; they ignore keyboard shortcuts.
      */
     active: boolean;
-    onClose: () => void;
     /** Another folder was opened from this view (Ctrl+O); it is added, not swapped in. */
     onOpen: (project: Project) => void;
-    /** Running and failed tab counts, for the project bar. */
+    /** Running and failed tab counts, for the project switcher. */
     onSummary: (summary: StatusSummary) => void;
   }
 
-  let { project, active, onClose, onOpen, onSummary }: Props = $props();
+  let { project, active, onOpen, onSummary }: Props = $props();
   let openError = $state<string | null>(null);
-
-  let query = $state("");
-  let filterInput: HTMLInputElement;
-  const visible = $derived(filterPackages(project.packages, query));
-  // Same order as the list shows: workspace packages first, then the others.
-  const firstVisible = $derived(
-    [...visible.filter((p) => p.role !== "unlisted"), ...visible.filter((p) => p.role === "unlisted")].find(
-      (p) => p.scripts.length > 0,
-    ),
-  );
+  let sidebar: Sidebar;
 
   interface Tab extends TabInfo {
     launch: Launch;
@@ -101,6 +96,24 @@
     if (next) activeKey = next.key;
   }
 
+  // At most one script tab per script: ▶ reuses it (see `start`).
+  const scriptStates = $derived(
+    new Map(
+      tabs.flatMap((t): [string, ScriptState][] =>
+        t.launch.kind === "script" ? [[scriptKey(t.launch.packageDir, t.launch.script), scriptState(t.status)]] : [],
+      ),
+    ),
+  );
+  const activeTab = $derived(tabs.find((t) => t.key === activeKey));
+
+  function scriptKey(packageDir: string, script: string): string {
+    return `${packageDir}\0${script}`;
+  }
+
+  function stateOf(pkg: Package, script: string): ScriptState | null {
+    return scriptStates.get(scriptKey(pkg.relativeDir, script)) ?? null;
+  }
+
   $effect(() => onSummary(summarize(tabs.map((t) => t.status))));
 
   async function openAnother() {
@@ -114,17 +127,6 @@
     }
   }
 
-  function onFilterKeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && firstVisible?.scripts[0]) {
-      // Shift+Enter: type the command in a shell instead, to add arguments before running.
-      if (event.shiftKey) openShellTab(firstVisible.relativeDir, firstVisible.scripts[0].name);
-      else start(firstVisible, firstVisible.scripts[0].name);
-    } else if (event.key === "Escape") {
-      query = "";
-      filterInput.blur();
-    }
-  }
-
   function run(action: Action) {
     const panel = activeKey === null ? undefined : panels[activeKey];
     switch (action) {
@@ -132,8 +134,7 @@
         void openAnother();
         return;
       case "focus-filter":
-        filterInput.focus();
-        filterInput.select();
+        sidebar.focusFilter();
         return;
       case "next-tab":
         cycleTab(1);
@@ -172,51 +173,36 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div class="layout">
-  <aside>
-    <header>
-      <div class="title">
-        <strong>{project.name}</strong>
-        <span class="muted">{project.packageManager}</span>
-      </div>
-      <div class="header-actions">
-        <button
-          onclick={() => openShellTab("")}
-          title={`Open a terminal in the project folder (${shortcutLabel("open-shell")})`}>Terminal</button
-        >
-        <button onclick={onClose} title="Close the project and stop its scripts">Close</button>
-      </div>
-    </header>
-    {#if openError}
-      <ErrorLine message={openError} onDismiss={() => (openError = null)} />
-    {/if}
-    {#if project.problems.length > 0}
-      <details class="problems">
-        <summary>{project.problems.length} problem{project.problems.length === 1 ? "" : "s"}</summary>
-        <ul>
-          {#each project.problems as problem (problem.path + problem.message)}
-            <li><code>{problem.path || "."}</code> {problem.message}</li>
-          {/each}
-        </ul>
-      </details>
-    {/if}
-    <input
-      class="filter"
-      type="search"
-      placeholder={`Filter scripts (${shortcutLabel("focus-filter")})`}
-      aria-label="Filter scripts"
-      bind:value={query}
-      bind:this={filterInput}
-      onkeydown={onFilterKeydown}
-    />
-    {#if visible.length === 0}
-      <p class="no-match muted">No scripts match “{query}”.</p>
-    {:else}
-      <ScriptList packages={visible} onRun={start} onShell={(pkg, script) => openShellTab(pkg.relativeDir, script)} />
-    {/if}
-  </aside>
+  <Sidebar
+    bind:this={sidebar}
+    {project}
+    {stateOf}
+    onRun={start}
+    onShell={(pkg, script) => openShellTab(pkg.relativeDir, script)}
+    error={openError}
+    onDismissError={() => (openError = null)}
+  />
   <main class:with-tabs={tabs.length > 0}>
     {#if tabs.length > 0}
-      <TabBar {tabs} {activeKey} onSelect={(key) => (activeKey = key)} onClose={closeTab} />
+      <TabBar
+        {tabs}
+        {activeKey}
+        onSelect={(key) => (activeKey = key)}
+        onClose={closeTab}
+        onNewShell={() => openShellTab("")}
+      >
+        {#snippet actions()}
+          {#if activeTab}
+            {@const key = activeTab.key}
+            <TabActions
+              status={activeTab.status}
+              kind={activeTab.launch.kind}
+              onStop={() => void panels[key]?.stopScript()}
+              onRestart={() => void panels[key]?.restartScript()}
+            />
+          {/if}
+        {/snippet}
+      </TabBar>
       <div class="panels">
         {#each tabs as tab (tab.key)}
           <div class="slot" hidden={tab.key !== activeKey}>
@@ -224,7 +210,7 @@
               bind:this={panels[tab.key]}
               projectRoot={project.root}
               launch={tab.launch}
-              label={tab.label}
+              packageManager={project.packageManager}
               active={active && tab.key === activeKey}
               onStatus={(status) => setStatus(tab.key, status)}
             />
@@ -232,7 +218,12 @@
         {/each}
       </div>
     {:else}
-      <p class="placeholder muted">Pick a script to run it here, or open a terminal.</p>
+      <div class="placeholder">
+        <p>Pick a script to run it here, or open a terminal.</p>
+        <button onclick={() => openShellTab("")}>
+          Open a terminal <kbd>{shortcutLabel("open-shell")}</kbd>
+        </button>
+      </div>
     {/if}
   </main>
 </div>
@@ -240,95 +231,21 @@
 <style>
   .layout {
     display: grid;
-    grid-template-columns: minmax(16rem, 22rem) 1fr;
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
     height: 100%;
-  }
-
-  aside {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    border-right: 1px solid var(--border);
-    background: var(--surface);
-  }
-
-  aside > header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.6rem 0.75rem;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .header-actions {
-    display: flex;
-    gap: 0.35rem;
-  }
-
-  .title {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    min-width: 0;
-  }
-
-  .title strong {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .muted {
-    color: var(--text-muted);
-  }
-
-  aside > :global(nav) {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .filter {
-    margin: 0.5rem 0.75rem 0.25rem;
-    padding: 0.35rem 0.5rem;
-    font: inherit;
-    color: inherit;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-  }
-
-  .filter:focus {
-    outline: 2px solid var(--accent);
-    outline-offset: -1px;
-  }
-
-  .no-match {
-    margin: 0.5rem 0.75rem;
-    font-size: 0.85rem;
-  }
-
-  .problems {
-    padding: 0.4rem 0.75rem;
-    border-bottom: 1px solid var(--border);
-    color: var(--danger);
-    font-size: 0.85rem;
-  }
-
-  .problems ul {
-    margin: 0.4rem 0 0;
-    padding-left: 1rem;
-    color: var(--text);
   }
 
   main {
     min-width: 0;
     min-height: 0;
+    background: var(--bg);
   }
 
+  /* minmax(0, …): an `auto` column would grow to the terminal's and the tab strip's width. */
   main.with-tabs {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .panels,
@@ -344,7 +261,19 @@
   .placeholder {
     display: grid;
     place-content: center;
+    justify-items: center;
+    gap: 0.75rem;
     height: 100%;
+    color: var(--text-muted);
+  }
+
+  .placeholder p {
     margin: 0;
+  }
+
+  .placeholder button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 </style>

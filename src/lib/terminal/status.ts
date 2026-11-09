@@ -29,7 +29,7 @@ export function statusText(status: TerminalStatus): string {
   }
 }
 
-/** How many of a project's tabs are running and how many failed (project bar preview). */
+/** How many of a project's tabs are running and how many failed (project switcher and totals). */
 export interface StatusSummary {
   active: number;
   failed: number;
@@ -41,6 +41,27 @@ export function summarize(statuses: TerminalStatus[]): StatusSummary {
     active: tones.filter((tone) => tone === "active").length,
     failed: tones.filter((tone) => tone === "error").length,
   };
+}
+
+/** What the script list shows next to a script that has a tab. */
+export type ScriptState = "running" | "passed" | "stopped" | "failed";
+
+export function scriptState(status: TerminalStatus): ScriptState {
+  switch (status.kind) {
+    case "starting":
+    case "running":
+    case "stopping":
+      return "running";
+    case "exited":
+      if (status.info.signal !== null) return "stopped";
+      return status.info.code === 0 ? "passed" : "failed";
+    case "failed":
+      return "failed";
+    default: {
+      const unreachable: never = status;
+      return unreachable;
+    }
+  }
 }
 
 /** Visual tone of a status: running, finished cleanly, or something went wrong. */

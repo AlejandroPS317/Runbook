@@ -125,7 +125,7 @@ extra setup.
 
 Design: [`superpowers/specs/2026-11-09-multiple-projects-design.md`](superpowers/specs/2026-11-09-multiple-projects-design.md).
 
-- Several projects open in one window, selected from a project bar (Alt+1…9, ⌘1…9 on
+- Several projects open in one window, selected from a project switcher (Alt+1…9, ⌘1…9 on
   macOS); each keeps its script list, filter and terminal tabs.
 - Switching projects never stops or clears a script; each project shows how many of its
   scripts are running and how many failed.

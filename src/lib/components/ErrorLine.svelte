@@ -17,9 +17,10 @@
     display: flex;
     align-items: flex-start;
     gap: 0.5rem;
-    margin: 0;
-    padding: 0.4rem 0.75rem;
-    border-bottom: 1px solid var(--border);
+    margin: 0.6rem 0.6rem 0;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius);
+    background: var(--danger-soft);
     color: var(--danger);
     font-size: 0.85rem;
   }

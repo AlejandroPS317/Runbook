@@ -1,17 +1,25 @@
 <script lang="ts">
+  import { SvelteSet } from "svelte/reactivity";
   import type { Package, PackageRole } from "../ipc/types";
+  import type { ScriptState } from "../terminal/status";
+  import ScriptRow from "./ScriptRow.svelte";
 
   interface Props {
     packages: Package[];
+    /** State of the script's tab, or `null` when it has none. */
+    stateOf: (pkg: Package, script: string) => ScriptState | null;
+    /** Shows every package expanded, e.g. while filtering, so no match is hidden. */
+    expandAll: boolean;
     onRun: (pkg: Package, script: string) => void;
     /** Opens a shell in the package folder; with `script`, its command is typed at the prompt. */
     onShell: (pkg: Package, script: string | null) => void;
   }
 
-  let { packages, onRun, onShell }: Props = $props();
+  let { packages, stateOf, expandAll, onRun, onShell }: Props = $props();
 
   const declared = $derived(packages.filter((p) => p.role !== "unlisted"));
   const unlisted = $derived(packages.filter((p) => p.role === "unlisted"));
+  const collapsed = new SvelteSet<string>();
 
   function title(pkg: Package): string {
     return pkg.name ?? (pkg.relativeDir || "(root)");
@@ -31,14 +39,30 @@
       }
     }
   }
+
+  function toggle(pkg: Package) {
+    if (collapsed.has(pkg.relativeDir)) collapsed.delete(pkg.relativeDir);
+    else collapsed.add(pkg.relativeDir);
+  }
 </script>
 
 {#snippet group(list: Package[])}
   {#each list as pkg (pkg.relativeDir)}
+    {@const open = expandAll || !collapsed.has(pkg.relativeDir)}
     <section class="package">
       <header>
-        <span class="name">{title(pkg)}</span>
-        <span class="dir" title={roleLabel(pkg.role)}>{pkg.relativeDir || "."}</span>
+        <button
+          class="toggle"
+          aria-expanded={open}
+          title={open ? "Collapse" : "Expand"}
+          onclick={() => toggle(pkg)}
+        >
+          <span class="chevron" class:open></span>
+          <span class="name">{title(pkg)}</span>
+        </button>
+        <span class="badge" class:root={pkg.role === "root"} title={roleLabel(pkg.role)}>
+          {pkg.role === "root" ? "ROOT" : pkg.relativeDir}
+        </span>
         <button
           class="shell"
           title={`Open a terminal in ${pkg.relativeDir || "the project folder"}`}
@@ -46,28 +70,22 @@
           onclick={() => onShell(pkg, null)}>&gt;_</button
         >
       </header>
-      {#if pkg.scripts.length === 0}
-        <p class="empty">No scripts</p>
-      {:else}
-        <ul>
-          {#each pkg.scripts as script (script.name)}
-            <li>
-              <button
-                class="run"
-                title={`Run: ${script.command}`}
-                aria-label={`Run ${script.name} in ${title(pkg)}`}
-                onclick={() => onRun(pkg, script.name)}>▶</button
-              >
-              <span class="script" title={script.command}>{script.name}</span>
-              <button
-                class="shell"
-                title="Open in a terminal with the command typed, to add arguments"
-                aria-label={`Open ${script.name} in a terminal in ${title(pkg)}`}
-                onclick={() => onShell(pkg, script.name)}>&gt;_</button
-              >
-            </li>
-          {/each}
-        </ul>
+      {#if open}
+        {#if pkg.scripts.length === 0}
+          <p class="empty">No scripts</p>
+        {:else}
+          <ul>
+            {#each pkg.scripts as script (script.name)}
+              <ScriptRow
+                {script}
+                owner={title(pkg)}
+                state={stateOf(pkg, script.name)}
+                onRun={() => onRun(pkg, script.name)}
+                onShell={() => onShell(pkg, script.name)}
+              />
+            {/each}
+          </ul>
+        {/if}
       {/if}
     </section>
   {/each}
@@ -83,111 +101,130 @@
 
 <style>
   .scripts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
     overflow-y: auto;
-    padding: 0.5rem 0;
+    padding: 0.25rem 0.6rem 0.75rem;
   }
 
   h2 {
-    margin: 1rem 0.75rem 0.25rem;
-    font-size: 0.75rem;
+    margin: 0.5rem 0.25rem 0;
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     color: var(--text-muted);
   }
 
   .package {
-    padding: 0.25rem 0;
+    flex: 0 0 auto;
+    padding: 0.2rem;
+    background: var(--raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
   }
 
   header {
     display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    padding: 0.25rem 0.75rem;
+    align-items: center;
+    gap: 0.4rem;
     min-width: 0;
+    padding-right: 0.15rem;
+  }
+
+  button {
+    border: none;
+    background: transparent;
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.4rem;
+    text-align: left;
+  }
+
+  .toggle:hover:not(:disabled) {
+    background: transparent;
+  }
+
+  .chevron {
+    flex: 0 0 auto;
+    width: 0.35rem;
+    height: 0.35rem;
+    border-right: 1.5px solid var(--text-muted);
+    border-bottom: 1.5px solid var(--text-muted);
+    transform: rotate(-45deg);
+    transition: transform 120ms ease;
+  }
+
+  .chevron.open {
+    transform: rotate(45deg);
   }
 
   .name {
+    font-family: var(--mono);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .dir {
-    color: var(--text-muted);
-    font-size: 0.8rem;
+  /* Shrinks faster than the package name, which matters more. */
+  .badge {
+    flex: 0 4 auto;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-faint);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .badge.root {
+    flex: 0 0 auto;
+    padding: 0.05rem 0.35rem;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
   }
 
   ul {
     list-style: none;
     margin: 0;
-    padding: 0;
-  }
-
-  li {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.1rem 0.75rem 0.1rem 1rem;
-  }
-
-  li:hover {
-    background: var(--hover);
-  }
-
-  .run {
-    padding: 0.1rem 0.4rem;
-    font-size: 0.7rem;
-    color: var(--accent);
-    background: transparent;
-    border-color: transparent;
-  }
-
-  .run:hover {
-    border-color: var(--border);
-  }
-
-  .script {
-    flex: 1;
-    min-width: 0;
-    font-family: var(--mono);
-    font-size: 0.85rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 0 0 0.15rem;
   }
 
   /* Shown on hover or keyboard focus, so the list stays as quiet as a plain script list. */
   .shell {
-    margin-left: auto;
-    padding: 0.05rem 0.35rem;
+    flex: 0 0 auto;
+    padding: 0.1rem 0.35rem;
+    margin-right: 0.15rem;
     font-family: var(--mono);
     font-size: 0.7rem;
     color: var(--text-muted);
-    background: transparent;
-    border-color: transparent;
     opacity: 0;
   }
 
   header:hover .shell,
-  li:hover .shell,
   .shell:focus-visible {
     opacity: 1;
   }
 
-  .shell:hover {
+  .shell:hover:not(:disabled) {
     color: var(--text);
-    border-color: var(--border);
+    background: var(--hover);
   }
 
   .empty {
     margin: 0;
-    padding: 0.1rem 1rem;
+    padding: 0.1rem 1.1rem 0.4rem;
     color: var(--text-muted);
     font-size: 0.85rem;
   }
