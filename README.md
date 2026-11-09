@@ -18,7 +18,7 @@ system webview instead of bundling a browser.
 
 ## Status
 
-**v0.1.0 (pre-release).** The v1 feature set is complete and tested on Linux, the primary
+**v0.1.1 (pre-release).** The v1 feature set is complete and tested on Linux, the primary
 platform. macOS and Windows builds pass the full test suite in CI but have not been run on
 real machines yet. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for per-platform status.
 
@@ -30,13 +30,13 @@ runs your scripts with them; nvm, fnm, volta and corepack setups are found autom
 Download the installer for your system from
 [Releases](https://github.com/AlejandroPS317/Runbook/releases). The repository is private
 for now: sign in to GitHub in the browser, or use the commands below with the
-[GitHub CLI](https://cli.github.com) (run `gh auth login` once). Replace `v0.1.0` with the
+[GitHub CLI](https://cli.github.com) (run `gh auth login` once). Replace `v0.1.1` with the
 version you want.
 
 ### macOS (Apple Silicon)
 
 ```sh
-gh release download v0.1.0 -R AlejandroPS317/Runbook -p '*.dmg' -D ~/Downloads
+gh release download v0.1.1 -R AlejandroPS317/Runbook -p '*.dmg' -D ~/Downloads
 hdiutil attach -nobrowse -mountpoint /tmp/runbook-dmg ~/Downloads/Runbook_*_aarch64.dmg
 cp -R /tmp/runbook-dmg/Runbook.app /Applications/
 hdiutil detach /tmp/runbook-dmg
@@ -51,7 +51,7 @@ says the app "is damaged" or "cannot be verified". Intel Macs are not supported 
 ### Linux: Debian, Ubuntu, Zorin, Mint…
 
 ```sh
-gh release download v0.1.0 -R AlejandroPS317/Runbook -p '*.deb'
+gh release download v0.1.1 -R AlejandroPS317/Runbook -p '*.deb'
 sudo apt install ./Runbook_*_amd64.deb
 ```
 
@@ -61,7 +61,7 @@ Open **Runbook** from the applications menu, or run `runbook` (optionally with a
 ### Linux: any distribution (AppImage, no install)
 
 ```sh
-gh release download v0.1.0 -R AlejandroPS317/Runbook -p '*.AppImage'
+gh release download v0.1.1 -R AlejandroPS317/Runbook -p '*.AppImage'
 chmod +x Runbook_*_amd64.AppImage
 ./Runbook_*_amd64.AppImage
 ```
@@ -71,8 +71,8 @@ chmod +x Runbook_*_amd64.AppImage
 In PowerShell:
 
 ```powershell
-gh release download v0.1.0 -R AlejandroPS317/Runbook -p '*-setup.exe'
-.\Runbook_0.1.0_x64-setup.exe
+gh release download v0.1.1 -R AlejandroPS317/Runbook -p '*-setup.exe'
+.\Runbook_0.1.1_x64-setup.exe
 ```
 
 Windows SmartScreen warns because the installer is not signed yet: choose
