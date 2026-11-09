@@ -28,10 +28,9 @@ real machines yet. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for per-platform sta
 runs your scripts with them; nvm, fnm, volta and corepack setups are found automatically.
 
 Download the installer for your system from
-[Releases](https://github.com/AlejandroPS317/Runbook/releases). The repository is private
-for now: sign in to GitHub in the browser, or use the commands below with the
-[GitHub CLI](https://cli.github.com) (run `gh auth login` once). Replace `v0.1.1` with the
-version you want.
+[Releases](https://github.com/AlejandroPS317/Runbook/releases) in the browser, or use the
+commands below with the [GitHub CLI](https://cli.github.com) (run `gh auth login` once).
+Replace `v0.1.1` with the version you want.
 
 ### macOS (Apple Silicon)
 
@@ -78,6 +77,17 @@ gh release download v0.1.1 -R AlejandroPS317/Runbook -p '*-setup.exe'
 Windows SmartScreen warns because the installer is not signed yet: choose
 **More info → Run anyway**. An `.msi` is also available for managed installs.
 
+### Updates
+
+Runbook updates itself from v0.1.2 on (v0.1.1 and older have to be reinstalled once with
+the commands above). At startup it checks GitHub Releases for a newer version; when there
+is one, a banner offers **Update and restart**. The update is downloaded, its signature
+verified, and Runbook restarts on the new version. If scripts are running, Runbook asks
+first and stops them (with their whole process tree) before installing. A `.deb` install
+asks for your password, since it updates the system package. The home screen shows the
+version and has **Check for updates** and a **Check at startup** switch to turn the
+automatic check off.
+
 ### Uninstall
 
 - macOS: delete `/Applications/Runbook.app`.
@@ -85,7 +95,7 @@ Windows SmartScreen warns because the installer is not signed yet: choose
 - AppImage: delete the file.
 - Windows: Settings → Apps → Installed apps → Runbook → Uninstall.
 
-Your recent projects list lives in the app data folder
+Your recent projects list and settings live in the app data folder
 (`~/.local/share/io.github.alejandrops317.runbook` on Linux,
 `~/Library/Application Support/io.github.alejandrops317.runbook` on macOS,
 `%APPDATA%\io.github.alejandrops317.runbook` on Windows).
@@ -98,6 +108,22 @@ build the Linux installers only. Locally, run
 `pnpm tauri build --bundles deb,appimage` (Linux), `app,dmg` (macOS) or `msi,nsis`
 (Windows). macOS builds are ad-hoc signed (`signingIdentity: "-"`), which Apple Silicon
 needs for downloaded apps; real signing and notarization need an Apple Developer account.
+
+To ship a new version
+([ADR 0007](docs/decisions/0007-in-app-updates.md)):
+
+1. Bump `version` in `package.json`, `src-tauri/tauri.conf.json` and the root
+   `Cargo.toml`, merge, then tag `main`: `git tag v0.1.2 && git push origin v0.1.2`.
+2. The workflow signs the update bundles with the updater key (`TAURI_SIGNING_PRIVATE_KEY`
+   and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets) and attaches them with `latest.json`
+   to the draft.
+3. Review the draft and **Publish** it (not as a pre-release). Installed apps offer the
+   update from then on.
+
+Local builds skip the update bundles. To produce them, pass
+`--config src-tauri/tauri.updater.conf.json` with the two signing variables set. Keep an
+offline backup of the private key: without it, existing installs can never accept another
+update.
 
 ### Memory use
 

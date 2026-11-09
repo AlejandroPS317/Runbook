@@ -23,6 +23,11 @@ in CI; the app has not been run on a real machine yet.
 M6: installers build on all three OSes (Release workflow); the Linux `.deb` was installed
 and run by the user. Pending on macOS and Windows: installing on a real machine.
 
+In-app updates ([ADR 0007](decisions/0007-in-app-updates.md)): on Linux an AppImage
+updated itself from 0.1.1 to 0.1.2 against a local manifest, including stopping a running
+script first. Pending: a `.deb` update from a published release (Linux), and a first
+update on macOS and Windows.
+
 ## v1 scope
 
 In scope: open a folder, recent projects, discover `package.json` files, respect pnpm and
@@ -105,6 +110,8 @@ manager, and finds no surviving processes.
   Linux).
 - Mitigate the WebKitGTK hang caused by WOFF fonts on Linux in the app itself (done:
   [ADR 0006](decisions/0006-linux-woff-font-workaround.md)).
+- In-app updates from signed GitHub releases, with a startup check the user can turn off
+  ([ADR 0007](decisions/0007-in-app-updates.md)).
 
 Accepted per platform when its installer installs and runs on a clean machine without
 extra setup.
