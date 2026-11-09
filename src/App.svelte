@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Home from "./lib/components/Home.svelte";
-  import ProjectBar, { type ProjectEntry } from "./lib/components/ProjectBar.svelte";
+  import type { ProjectEntry } from "./lib/components/ProjectSwitcher.svelte";
   import ProjectView from "./lib/components/ProjectView.svelte";
+  import StatusBar from "./lib/components/StatusBar.svelte";
+  import TopBar from "./lib/components/TopBar.svelte";
   import UpdateBanner from "./lib/components/UpdateBanner.svelte";
   import { closeProject } from "./lib/ipc/project";
   import type { Project } from "./lib/ipc/types";
@@ -18,6 +20,7 @@
   let selectedRoot = $state<string | null>(null);
   let homeRequested = $state(false);
   const showHome = $derived(projects.length === 0 || homeRequested);
+  const current = $derived(showHome ? undefined : projects.find((p) => p.root === selectedRoot));
   const entries = $derived<ProjectEntry[]>(
     projects.map((p) => ({
       root: p.root,
@@ -71,56 +74,47 @@
 
 <div class="app">
   <UpdateBanner />
-  <div class="content">
-    {#if projects.length > 0}
-      <ProjectBar
-        projects={entries}
-        activeRoot={showHome ? null : selectedRoot}
-        onSelect={select}
-        onClose={close}
-        onAdd={() => (homeRequested = true)}
-      />
+  {#if projects.length > 0}
+    <TopBar
+      projects={entries}
+      activeRoot={current?.root ?? null}
+      packageManager={current?.packageManager ?? null}
+      onSelect={select}
+      onClose={close}
+      onAdd={() => (homeRequested = true)}
+    />
+  {/if}
+  <div class="views">
+    {#each projects as project (project.root)}
+      <div class="slot" hidden={project.root !== current?.root}>
+        <ProjectView
+          {project}
+          active={project.root === current?.root}
+          onOpen={open}
+          onSummary={(summary) => {
+            summaries[project.root] = summary;
+          }}
+        />
+      </div>
+    {/each}
+    {#if showHome}
+      <Home onOpen={open} />
     {/if}
-    <div class="views">
-      {#each projects as project (project.root)}
-        {@const active = !showHome && project.root === selectedRoot}
-        <div class="slot" hidden={!active}>
-          <ProjectView
-            {project}
-            {active}
-            onClose={() => close(project.root)}
-            onOpen={open}
-            onSummary={(summary) => {
-              summaries[project.root] = summary;
-            }}
-          />
-        </div>
-      {/each}
-      {#if showHome}
-        <Home onOpen={open} />
-      {/if}
-    </div>
   </div>
+  {#if current}
+    <StatusBar project={current} />
+  {/if}
 </div>
 
 <style>
   .app {
-    display: grid;
-    grid-template-rows: auto 1fr;
+    display: flex;
+    flex-direction: column;
     height: 100%;
   }
 
-  /* Explicit row: without a banner the content would otherwise take the `auto` row. */
-  .content {
-    grid-row: 2;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    min-height: 0;
-  }
-
-  /* Explicit row for the same reason, when no project bar is shown. */
   .views {
-    grid-row: 2;
+    flex: 1;
     min-height: 0;
   }
 

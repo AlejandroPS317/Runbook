@@ -12,10 +12,11 @@
     writeTerminal,
     type TerminalHandlers,
   } from "../ipc/terminal";
-  import type { ShellSession } from "../ipc/types";
-  import { projectIndexFor, shortcutFor, shortcutLabel } from "../keyboard";
+  import type { Project, ShellSession } from "../ipc/types";
+  import { projectIndexFor, shortcutFor } from "../keyboard";
   import type { Launch } from "../terminal/launch";
-  import { statusText, statusTone, type TerminalStatus } from "../terminal/status";
+  import type { TerminalStatus } from "../terminal/status";
+  import { currentTerminalTheme, watchTerminalTheme } from "../terminal/theme";
 
   /**
    * How long a shell's output must stay quiet before its prompt counts as ready, for shells
@@ -27,7 +28,7 @@
     projectRoot: string;
     /** Fixed for the tab's lifetime; restart launches the same thing again. */
     launch: Launch;
-    label: string;
+    packageManager: Project["packageManager"];
     /**
      * Only the active tab of the selected project is visible; hidden tabs keep running and
      * keep their output.
@@ -36,8 +37,22 @@
     onStatus: (status: TerminalStatus) => void;
   }
 
-  let { projectRoot, launch, label, active, onStatus }: Props = $props();
-  const noun = $derived(launch.kind === "script" ? "script" : "shell");
+  let { projectRoot, launch, packageManager, active, onStatus }: Props = $props();
+  const command = $derived(commandLine(launch));
+
+  /** What the header shows the tab running; the PTY is spawned from argv, not from this. */
+  function commandLine(target: Launch): string {
+    switch (target.kind) {
+      case "script":
+        return `${packageManager} run ${target.script}`;
+      case "shell":
+        return target.prefillScript === null ? "shell" : `shell: ${packageManager} run ${target.prefillScript} …`;
+      default: {
+        const unreachable: never = target;
+        return unreachable;
+      }
+    }
+  }
 
   let status = $state<TerminalStatus>({ kind: "starting" });
   let container: HTMLDivElement;
@@ -68,7 +83,10 @@
       fontSize: 13,
       scrollback: 10_000,
       cursorBlink: true,
-      theme: { background: "#111113", foreground: "#e4e4e7" },
+      theme: currentTerminalTheme(),
+    });
+    const unwatchTheme = watchTerminalTheme((theme) => {
+      terminal.options.theme = theme;
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
@@ -213,6 +231,7 @@
     return () => {
       disposed = true;
       clearTimeout(promptTimer);
+      unwatchTheme();
       observer.disconnect();
       input.dispose();
       if (sessionId !== null) void closeTerminal(sessionId);
@@ -220,91 +239,65 @@
     };
   });
 
-  const busy = $derived(status.kind === "starting" || status.kind === "stopping");
-  const tone = $derived(statusTone(status));
 </script>
 
 <section class="panel">
   <header>
-    <span class="label">{label}</span>
-    <span class="status" class:ok={status.kind === "running"} class:bad={tone === "error"}>
-      {statusText(status)}
-    </span>
-    <div class="actions">
-      <button
-        onclick={() => stop()}
-        disabled={status.kind !== "running"}
-        title={`Stop the ${noun} and every process it started (${shortcutLabel("stop-tab")})`}
-      >
-        ■ Stop
-      </button>
-      <button
-        onclick={() => restart()}
-        disabled={busy}
-        title={launch.kind === "script"
-          ? `Stop and run the script again (${shortcutLabel("restart-tab")})`
-          : `Stop and open a new shell (${shortcutLabel("restart-tab")})`}
-      >
-        ↻ Restart
-      </button>
-    </div>
+    <span class="prompt" aria-hidden="true">➜</span>
+    <span class="command" title={command}>{command}</span>
+    <span class="dir" title="Working folder">{launch.packageDir || "."}</span>
   </header>
   <div class="terminal" bind:this={container}></div>
 </section>
 
 <style>
+  /* `--bg` matches the xterm.js background (see terminal/theme.ts). */
   .panel {
     display: grid;
     grid-template-rows: auto 1fr;
     height: 100%;
     min-height: 0;
-    background: #111113;
+    background: var(--bg);
   }
 
   header {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.3rem 0.5rem 0.3rem 0.75rem;
+    gap: 0.6rem;
+    margin: 0.6rem 0.75rem 0.4rem;
+    padding: 0.45rem 0.75rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
     background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
   }
 
-  .label {
+  .prompt {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .command {
     flex: 1;
     min-width: 0;
-    font-family: var(--mono);
+    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .status {
-    color: var(--text-muted);
+  .dir {
+    flex: 0 1 auto;
+    min-width: 0;
+    color: var(--text-faint);
     white-space: nowrap;
-  }
-
-  .status.ok {
-    color: var(--accent);
-  }
-
-  .status.bad {
-    color: var(--danger);
-  }
-
-  .actions {
-    display: flex;
-    gap: 0.35rem;
-  }
-
-  .actions button {
-    padding: 0.2rem 0.6rem;
-    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .terminal {
     min-height: 0;
-    padding: 0.25rem 0 0 0.5rem;
+    padding: 0 0.25rem 0.25rem 0.75rem;
   }
 </style>

@@ -212,8 +212,9 @@
     margin: 0;
     padding: 0;
     border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface);
+    border-radius: var(--radius-lg);
+    background: var(--raised);
+    overflow: hidden;
   }
 
   li {
@@ -238,11 +239,13 @@
   }
 
   .name {
+    font-family: var(--mono);
     font-weight: 600;
   }
 
   .path {
-    color: var(--text-muted);
+    font-family: var(--mono);
+    color: var(--text-faint);
     font-size: 0.8rem;
     white-space: nowrap;
     overflow: hidden;

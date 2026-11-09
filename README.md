@@ -170,18 +170,23 @@ pnpm install
 pnpm tauri dev
 ```
 
-Pick a folder with **Open folder…** (or a recent project), then press ▶ next to a script
-to run it in its own terminal tab. A built binary also accepts the folder on the command
-line: `runbook /path/to/project`.
+Pick a folder with **Open folder…** (or a recent project), then click a script to run it
+in its own terminal tab; the script list shows which scripts are running, passed or
+failed. In monorepos with `apps/` and `packages/` folders, **Apps** and **Packages** narrow
+the list. A built binary also accepts the folder on the command line:
+`runbook /path/to/project`.
 
-For commands that are not scripts, **Terminal** (or `>_` next to a package) opens your
-shell in the project or package folder. `>_` next to a script opens that shell with
-`pnpm run <script> ` already typed, so you can add flags such as `--apply` before pressing
-Enter.
+For commands that are not scripts, **+** in the tab strip (or `>_` next to a package)
+opens your shell in the project or package folder. `>_` next to a script opens that shell
+with `pnpm run <script> ` already typed, so you can add flags such as `--apply` before
+pressing Enter.
 
-Several projects can be open at once: **+** in the project bar (or Ctrl+O) adds another
-one. Switching projects keeps every script running; each project in the bar shows how many
-of its scripts are running and how many failed. Closing a project stops only its scripts.
+Several projects can be open at once: **+** next to the project switcher (or Ctrl+O) adds
+another one. Switching projects keeps every script running; the switcher's menu shows how
+many of each project's scripts are running and how many failed, and closes projects.
+Closing a project stops only its scripts.
+
+Runbook follows the system's light or dark theme, terminals included.
 
 ### Keyboard shortcuts
 
