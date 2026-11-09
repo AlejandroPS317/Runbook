@@ -17,7 +17,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 | M5 Multiple tabs       | ✅    | ✅    | ✅      |
 | M6 Polish and packages | ✅    | 🚧    | 🚧      |
 | M7 Multiple projects   | 🚧    | 🚧    | 🚧      |
-| M8 Project terminal    | 🚧    | ⏳    | ⏳      |
+| M8 Project terminal    | ✅    | ✅    | 🚧      |
 
 M0 and M3 on macOS and Windows: builds, lints and tests (including PTY session tests) pass
 in CI; the app has not been run on a real machine yet.
@@ -29,6 +29,9 @@ In-app updates ([ADR 0007](decisions/0007-in-app-updates.md)): on Linux an AppIm
 updated itself from 0.1.1 to 0.1.2 against a local manifest, including stopping a running
 script first. Pending: a `.deb` update from a published release (Linux), and a first
 update on macOS and Windows.
+
+M8 on Windows: the PowerShell shell tab and its quoting build in CI but have no session
+test and have not been run on a real machine yet.
 
 ## v1 scope
 
