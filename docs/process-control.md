@@ -10,9 +10,10 @@ processes, and stopping a script must stop the whole tree on every platform.
 - **Restart** = stop (wait until the tree is gone) + spawn with the same command and cwd.
 - **App exit leaves no orphans**: closing the window or quitting stops every session
   before the process exits.
-- **No busy loops**: wait on process exit, PTY reads and channels. The only timed part is
-  a stop: the grace period between graceful and forced termination, during which liveness
-  is re-checked every 20 ms. Nothing polls while scripts run.
+- **No busy loops**: wait on process exit, PTY reads and channels. The timed parts are a
+  stop (the grace period between graceful and forced termination, during which liveness
+  is re-checked every 20 ms) and the prompt fallback of shell tabs (see below). Nothing
+  polls while scripts run.
 
 ## Spawning
 
@@ -37,6 +38,36 @@ Windows: `portable-pty` creates the pseudoconsole with `PSEUDOCONSOLE_INHERIT_CU
 conhost first sends a cursor-position query (`ESC[6n`) and the child does not start until
 the terminal answers (`ESC[row;colR`). xterm.js answers it automatically; tests and any
 headless use must answer it themselves (see `tests/common/mod.rs`).
+
+## Interactive shells
+
+Implemented in `crates/runbook-process/src/shell.rs` and `src-tauri/src/shell.rs` (M8). A
+shell tab is a session like any other: same PTY, same environment, same stop, restart and
+close.
+
+- The program comes from `user_shell`. Linux and macOS: `$SHELL` from the captured
+  environment, or `/bin/sh`, started without arguments: interactive because its stdin is
+  a terminal, so it reads its rc file; not a login shell, because the environment already
+  comes from one. Windows: `powershell.exe -NoLogo`.
+- `cwd` is the package folder, or the project root (even when the root has no
+  `package.json`).
+- Interactive shells ignore `SIGTERM`, so on Linux and macOS stopping one takes the forced
+  path (`SIGKILL` after the grace period); `tests/shell.rs` covers it.
+
+### Prefilled command lines
+
+To run a script with extra arguments, the shell opens with `<pm> run <script> ` already
+typed at the prompt (npm: `npm run <script> -- `, because npm reads later flags as its own
+options). This is the one place where a command becomes a string: Runbook types it, but
+never presses Enter; the user edits and runs it. `command_line` quotes only words outside
+`[A-Za-z0-9_./:+-]`: POSIX single quotes on Linux and macOS (bash, zsh and fish agree unless
+the word has a backslash), PowerShell single quotes on Windows.
+
+The text is written only once the prompt is ready, because typing earlier makes the kernel
+echo it and the line editor draw it a second time. `TerminalPanel.svelte` waits until
+xterm.js reports bracketed paste mode, which bash 5.1+, zsh and fish turn on when they
+start reading a line. Shells without a line editor (sh, dash) never turn it on; for them
+the prompt counts as ready after 1 s without output, an inherently timed guess.
 
 ## Stopping, per platform
 

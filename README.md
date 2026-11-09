@@ -172,6 +172,11 @@ Pick a folder with **Open folder…** (or a recent project), then press ▶ next
 to run it in its own terminal tab. A built binary also accepts the folder on the command
 line: `runbook /path/to/project`.
 
+For commands that are not scripts, **Terminal** (or `>_` next to a package) opens your
+shell in the project or package folder. `>_` next to a script opens that shell with
+`pnpm run <script> ` already typed, so you can add flags such as `--apply` before pressing
+Enter.
+
 Several projects can be open at once: **+** in the project bar (or Ctrl+O) adds another
 one. Switching projects keeps every script running; each project in the bar shows how many
 of its scripts are running and how many failed. Closing a project stops only its scripts.
@@ -184,7 +189,8 @@ On macOS, use ⌘ instead of Ctrl and instead of Alt (tab switching keeps Ctrl).
 | ----------------------------- | ---------------------------------------------- |
 | Ctrl+O                        | Open a folder as another project               |
 | Alt+1 … Alt+9                 | Select the 1st … 9th open project              |
-| Ctrl+Shift+F                  | Filter scripts (Enter runs the first match)    |
+| Ctrl+Shift+F                  | Filter scripts (Enter runs the first match; Shift+Enter types it in a terminal) |
+| Ctrl+Shift+T                  | Open a terminal in the project folder          |
 | Ctrl+Tab / Ctrl+Shift+Tab     | Next / previous tab (also Ctrl+PageDown/PageUp) |
 | Ctrl+Shift+K                  | Stop the active tab's script and its processes |
 | Ctrl+Shift+R                  | Restart the active tab's script                |
