@@ -1,4 +1,9 @@
-# Runbook
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" alt="Runbook" width="360">
+  </picture>
+</h1>
 
 A lightweight desktop app to run and manage `package.json` scripts in JavaScript projects
 and monorepos, without opening an IDE.
@@ -116,11 +121,13 @@ cargo run -p runbook-core --example discover -- /path/to/project
 
 Prints every package and script Runbook finds, any problems, and the time it took.
 
-### App icon
+### App icon and logo
 
-The source icon is `src-tauri/icons/icon.svg`. Regenerate the platform icons with
-`pnpm tauri icon src-tauri/icons/icon.svg`, then delete the generated `android/`, `ios/`
-and `Square*`/`StoreLogo` files: Runbook only ships desktop builds.
+The logo sources live in `assets/`: `icon.svg` (the hexagon), `logo.svg` and
+`logo-dark.svg` (horizontal, for light and dark backgrounds). `src-tauri/icons/icon.svg` is
+`assets/icon.svg` on a square canvas. Regenerate the platform icons with
+`pnpm tauri icon src-tauri/icons/icon.svg`, then delete the generated `android/`, `ios/`,
+`64x64.png` and `Square*`/`StoreLogo` files: Runbook only ships desktop builds.
 
 ## Troubleshooting
 
