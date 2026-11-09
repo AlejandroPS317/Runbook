@@ -8,7 +8,10 @@
     takeInitialPath,
   } from "../ipc/project";
   import type { Project, RecentProject } from "../ipc/types";
+  import { appVersion } from "../ipc/updates";
   import { shortcutFor, shortcutLabel } from "../keyboard";
+  import { checkForUpdatesAtStartup, setCheckForUpdatesAtStartup } from "../settings";
+  import { updates } from "../updates.svelte";
   import iconUrl from "../../../assets/icon.svg";
 
   interface Props {
@@ -19,12 +22,15 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
   let recent = $state<RecentProject[]>([]);
+  let version = $state("");
+  let checkAtStartup = $state(checkForUpdatesAtStartup());
 
   onMount(() => {
     void takeInitialPath().then((path) => {
       if (path) void open(path);
     });
     void recentProjects().then((list) => (recent = list));
+    void appVersion().then((v) => (version = v));
   });
 
   async function chooseFolder() {
@@ -96,16 +102,67 @@
       </ul>
     </section>
   {/if}
+
+  <footer class="muted">
+    <span>Runbook {version}</span>
+    <button
+      class="link"
+      onclick={() => updates.check(true)}
+      disabled={updates.checking || updates.installing}
+    >
+      {updates.checking ? "Checking…" : "Check for updates"}
+    </button>
+    <label>
+      <input
+        type="checkbox"
+        bind:checked={checkAtStartup}
+        onchange={() => setCheckForUpdatesAtStartup(checkAtStartup)}
+      />
+      Check at startup
+    </label>
+  </footer>
 </main>
 
 <style>
   .home {
+    position: relative;
     display: grid;
     place-content: center;
     justify-items: center;
     gap: 0.75rem;
     height: 100%;
     text-align: center;
+  }
+
+  footer {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.8rem;
+  }
+
+  .link {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-decoration: underline;
+  }
+
+  .link:hover:not(:disabled) {
+    background: transparent;
+    color: var(--text);
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
   }
 
   .logo {

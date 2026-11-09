@@ -7,6 +7,7 @@ mod project;
 mod recent;
 mod state;
 mod terminal;
+mod updates;
 
 use std::path::PathBuf;
 use std::thread;
@@ -22,7 +23,9 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(state)
+        .manage(updates::PendingUpdate::default())
         .setup(|app| {
             let recent_file = app.path().app_data_dir()?.join("recent-projects.json");
             app.manage(recent::RecentProjects::load(recent_file));
@@ -44,6 +47,9 @@ pub fn run() {
             terminal::resize_terminal,
             terminal::stop_terminal,
             terminal::close_terminal,
+            updates::check_for_update,
+            updates::running_scripts,
+            updates::install_update,
         ])
         .build(tauri::generate_context!())
         // Without an event loop the app cannot show anything, so failing here is fatal.

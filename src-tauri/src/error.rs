@@ -18,6 +18,12 @@ pub enum CommandError {
     SessionNotFound(u32),
     #[error("cannot save the recent projects list: {0}")]
     RecentProjects(#[from] std::io::Error),
+    #[error("update failed: {0}")]
+    Updater(#[from] tauri_plugin_updater::Error),
+    #[error("there is no update to install; check for updates first")]
+    NoPendingUpdate,
+    #[error("the update install was interrupted")]
+    UpdateInterrupted,
 }
 
 impl Serialize for CommandError {
