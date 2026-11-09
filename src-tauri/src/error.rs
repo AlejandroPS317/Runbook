@@ -16,6 +16,8 @@ pub enum CommandError {
     ScriptNotFound { package: String, script: String },
     #[error("terminal session {0} does not exist")]
     SessionNotFound(u32),
+    #[error("cannot save the recent projects list: {0}")]
+    RecentProjects(#[from] std::io::Error),
 }
 
 impl Serialize for CommandError {

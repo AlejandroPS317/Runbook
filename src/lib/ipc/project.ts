@@ -1,6 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Project } from "./types";
+import type { Project, RecentProject } from "./types";
+
+/** Recently opened projects whose folder still exists, most recent first. */
+export function recentProjects(): Promise<RecentProject[]> {
+  return invoke<RecentProject[]>("recent_projects");
+}
+
+export function forgetRecentProject(path: string): Promise<void> {
+  return invoke("forget_recent_project", { path });
+}
 
 /** Shows the native folder picker. Resolves to `null` when the user cancels. */
 export async function pickFolder(): Promise<string | null> {

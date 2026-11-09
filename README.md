@@ -47,9 +47,24 @@ pnpm install
 pnpm tauri dev
 ```
 
-Pick a folder with **Open folder…**, then press ▶ next to a script to run it in the
-terminal panel. A built binary also accepts the folder on the command line:
-`runbook /path/to/project`.
+Pick a folder with **Open folder…** (or a recent project), then press ▶ next to a script
+to run it in its own terminal tab. A built binary also accepts the folder on the command
+line: `runbook /path/to/project`.
+
+### Keyboard shortcuts
+
+On macOS, use ⌘ instead of Ctrl (tab switching keeps Ctrl).
+
+| Shortcut                      | Action                                         |
+| ----------------------------- | ---------------------------------------------- |
+| Ctrl+O                        | Open a folder                                  |
+| Ctrl+Shift+F                  | Filter scripts (Enter runs the first match)    |
+| Ctrl+Tab / Ctrl+Shift+Tab     | Next / previous tab (also Ctrl+PageDown/PageUp) |
+| Ctrl+Shift+K                  | Stop the active tab's script and its processes |
+| Ctrl+Shift+R                  | Restart the active tab's script                |
+| Ctrl+Shift+W                  | Close the active tab (stops its script)        |
+
+Shortcuts use Shift so the shell inside a tab keeps Ctrl+W, Ctrl+K and similar keys.
 
 ### Checks (same as CI)
 

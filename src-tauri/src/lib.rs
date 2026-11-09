@@ -3,6 +3,7 @@
 
 mod error;
 mod project;
+mod recent;
 mod state;
 mod terminal;
 
@@ -21,6 +22,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(|app| {
+            let recent_file = app.path().app_data_dir()?.join("recent-projects.json");
+            app.manage(recent::RecentProjects::load(recent_file));
             // Read the login-shell environment in the background so the first script
             // starts without waiting for the user's shell startup files.
             let handle = app.handle().clone();
@@ -32,6 +35,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             project::take_initial_path,
             project::open_project,
+            recent::recent_projects,
+            recent::forget_recent_project,
             terminal::run_script,
             terminal::write_terminal,
             terminal::resize_terminal,

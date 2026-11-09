@@ -7,6 +7,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::error::CommandError;
+use crate::recent::RecentProjects;
 use crate::state::{AppState, lock};
 
 #[derive(Serialize)]
@@ -62,9 +63,12 @@ pub async fn take_initial_path(state: State<'_, AppState>) -> Result<Option<Stri
 pub async fn open_project(
     path: PathBuf,
     state: State<'_, AppState>,
+    recent: State<'_, RecentProjects>,
 ) -> Result<ProjectDto, CommandError> {
     let discovery = discover(&path)?;
     let dto = to_dto(&discovery);
+    // A list that cannot be saved (read-only data folder) must not block opening.
+    let _ = recent.record(&discovery.root, &dto.name);
     *lock(&state.project) = Some(discovery);
     Ok(dto)
 }

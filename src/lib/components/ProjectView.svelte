@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { filterPackages } from "../filter";
+  import { openProject, pickFolder } from "../ipc/project";
   import type { Package, Project } from "../ipc/types";
+  import { shortcutFor, shortcutLabel, type Action } from "../keyboard";
   import type { TerminalStatus } from "../terminal/status";
   import ScriptList from "./ScriptList.svelte";
   import TabBar, { type TabInfo } from "./TabBar.svelte";
@@ -8,9 +11,21 @@
   interface Props {
     project: Project;
     onClose: () => void;
+    /** Another folder was opened from this view (Ctrl+O). */
+    onReplace: (project: Project) => void;
   }
 
-  let { project, onClose }: Props = $props();
+  let { project, onClose, onReplace }: Props = $props();
+
+  let query = $state("");
+  let filterInput: HTMLInputElement;
+  const visible = $derived(filterPackages(project.packages, query));
+  // Same order as the list shows: workspace packages first, then the others.
+  const firstVisible = $derived(
+    [...visible.filter((p) => p.role !== "unlisted"), ...visible.filter((p) => p.role === "unlisted")].find(
+      (p) => p.scripts.length > 0,
+    ),
+  );
 
   interface Tab extends TabInfo {
     packageDir: string;
@@ -22,6 +37,7 @@
   let tabs = $state<Tab[]>([]);
   let activeKey = $state<number | null>(null);
   let nextKey = 0;
+  const panels: Record<number, TerminalPanel> = {};
 
   function newTab(pkg: Package, script: string): Tab {
     nextKey += 1;
@@ -53,6 +69,7 @@
     const index = tabs.findIndex((t) => t.key === key);
     if (index === -1) return;
     tabs.splice(index, 1);
+    delete panels[key];
     if (activeKey === key) activeKey = (tabs[index] ?? tabs[index - 1])?.key ?? null;
   }
 
@@ -60,7 +77,69 @@
     const tab = tabs.find((t) => t.key === key);
     if (tab) tab.status = status;
   }
+
+  function cycleTab(step: number) {
+    if (tabs.length === 0) return;
+    const index = tabs.findIndex((t) => t.key === activeKey);
+    const next = tabs[(index + step + tabs.length) % tabs.length];
+    if (next) activeKey = next.key;
+  }
+
+  async function openAnother() {
+    const path = await pickFolder();
+    if (path) onReplace(await openProject(path));
+  }
+
+  function onFilterKeydown(event: KeyboardEvent) {
+    if (event.key === "Enter" && firstVisible?.scripts[0]) {
+      start(firstVisible, firstVisible.scripts[0].name);
+    } else if (event.key === "Escape") {
+      query = "";
+      filterInput.blur();
+    }
+  }
+
+  function run(action: Action) {
+    const panel = activeKey === null ? undefined : panels[activeKey];
+    switch (action) {
+      case "open-folder":
+        void openAnother();
+        return;
+      case "focus-filter":
+        filterInput.focus();
+        filterInput.select();
+        return;
+      case "next-tab":
+        cycleTab(1);
+        return;
+      case "previous-tab":
+        cycleTab(-1);
+        return;
+      case "close-tab":
+        if (activeKey !== null) closeTab(activeKey);
+        return;
+      case "restart-tab":
+        void panel?.restartScript();
+        return;
+      case "stop-tab":
+        void panel?.stopScript();
+        return;
+      default: {
+        const unreachable: never = action;
+        return unreachable;
+      }
+    }
+  }
+
+  function onKeydown(event: KeyboardEvent) {
+    const action = shortcutFor(event);
+    if (action === null) return;
+    event.preventDefault();
+    run(action);
+  }
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <div class="layout">
   <aside>
@@ -69,7 +148,7 @@
         <strong>{project.name}</strong>
         <span class="muted">{project.packageManager}</span>
       </div>
-      <button onclick={onClose}>Close</button>
+      <button onclick={onClose} title="Close the project and stop its scripts">Close</button>
     </header>
     {#if project.problems.length > 0}
       <details class="problems">
@@ -81,7 +160,20 @@
         </ul>
       </details>
     {/if}
-    <ScriptList packages={project.packages} onRun={start} />
+    <input
+      class="filter"
+      type="search"
+      placeholder={`Filter scripts (${shortcutLabel("focus-filter")})`}
+      aria-label="Filter scripts"
+      bind:value={query}
+      bind:this={filterInput}
+      onkeydown={onFilterKeydown}
+    />
+    {#if visible.length === 0}
+      <p class="no-match muted">No scripts match “{query}”.</p>
+    {:else}
+      <ScriptList packages={visible} onRun={start} />
+    {/if}
   </aside>
   <main class:with-tabs={tabs.length > 0}>
     {#if tabs.length > 0}
@@ -90,6 +182,7 @@
         {#each tabs as tab (tab.key)}
           <div class="slot" hidden={tab.key !== activeKey}>
             <TerminalPanel
+              bind:this={panels[tab.key]}
               packageDir={tab.packageDir}
               script={tab.script}
               label={tab.label}
@@ -113,8 +206,8 @@
   }
 
   aside {
-    display: grid;
-    grid-template-rows: auto auto 1fr;
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     border-right: 1px solid var(--border);
     background: var(--surface);
@@ -144,6 +237,31 @@
 
   .muted {
     color: var(--text-muted);
+  }
+
+  aside > :global(nav) {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .filter {
+    margin: 0.5rem 0.75rem 0.25rem;
+    padding: 0.35rem 0.5rem;
+    font: inherit;
+    color: inherit;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .filter:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+
+  .no-match {
+    margin: 0.5rem 0.75rem;
+    font-size: 0.85rem;
   }
 
   .problems {
