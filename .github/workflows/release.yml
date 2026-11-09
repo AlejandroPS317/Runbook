@@ -1,8 +1,8 @@
 name: Release
 
 # Builds the installers on every OS. A `v*` tag also publishes them to a draft GitHub
-# release. Pull requests that touch packaging run the build too, so installers are verified
-# before merge.
+# release. Pull requests that touch packaging build the Linux installers only (Linux first,
+# ADR 0002): a cold Windows build adds ~10 minutes and macOS runners can queue for 15.
 on:
   push:
     tags: ["v*"]
@@ -27,13 +27,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            bundles: deb,appimage
-          - os: macos-latest
-            bundles: app,dmg
-          - os: windows-latest
-            bundles: msi,nsis
+        # `strategy` cannot read `env`, so both lists are inline JSON.
+        include: >-
+          ${{ fromJSON(github.event_name == 'pull_request'
+            && '[{"os":"ubuntu-latest","bundles":"deb,appimage"}]'
+            || '[{"os":"ubuntu-latest","bundles":"deb,appimage"},
+                 {"os":"macos-latest","bundles":"app,dmg"},
+                 {"os":"windows-latest","bundles":"msi,nsis"}]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -46,7 +46,11 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # Only main saves: other refs cannot read caches of pull requests or tags, and those
+      # ~400 MB entries would evict main's within the 10 GB repository limit.
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - uses: pnpm/action-setup@v6
 
