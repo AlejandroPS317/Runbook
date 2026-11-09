@@ -43,8 +43,9 @@ Implemented in `crates/runbook-process` (M4): `Session::stop(grace)` in `stop.rs
 platform code in `tree/`. The default grace is 3 s (`DEFAULT_GRACE`). `stop` only acts
 while the script's direct child is running: afterwards its pid may be reused, so nothing
 is signalled (`AlreadyExited`). Dropping a session whose script still runs kills the tree
-immediately (`kill_tree_now`). On app exit, `src-tauri` stops every session in parallel
-and waits for all of them.
+immediately (`kill_tree_now`). The app keeps all sessions (one per tab) in a
+`SessionManager` (`manager.rs`); on app exit `SessionManager::stop_all` stops every session
+in parallel and waits for all of them (`tests/manager.rs`).
 
 ### Linux and macOS (`tree/unix.rs`)
 

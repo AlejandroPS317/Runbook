@@ -13,8 +13,8 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 | M1 Discovery           | ✅    | ✅    | ✅      |
 | M2 Monorepo workspaces | ✅    | ✅    | ✅      |
 | M3 One terminal        | ✅    | 🚧    | 🚧      |
-| M4 Stop and restart    | 🚧    | ✅    | ✅      |
-| M5 Multiple tabs       | ⏳    | ⏳    | ⏳      |
+| M4 Stop and restart    | ✅    | ✅    | ✅      |
+| M5 Multiple tabs       | ✅    | ✅    | ✅      |
 | M6 Polish and packages | ⏳    | ⏳    | ⏳      |
 
 M0 and M3 on macOS and Windows: builds, lints and tests (including PTY session tests) pass

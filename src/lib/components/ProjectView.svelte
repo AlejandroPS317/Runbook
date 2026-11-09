@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Package, Project } from "../ipc/types";
+  import type { TerminalStatus } from "../terminal/status";
   import ScriptList from "./ScriptList.svelte";
+  import TabBar, { type TabInfo } from "./TabBar.svelte";
   import TerminalPanel from "./TerminalPanel.svelte";
 
   interface Props {
@@ -10,21 +12,53 @@
 
   let { project, onClose }: Props = $props();
 
-  interface Run {
-    /** Changes on every run so the terminal remounts with a fresh session. */
-    key: number;
+  interface Tab extends TabInfo {
     packageDir: string;
     script: string;
-    label: string;
   }
 
-  let run = $state<Run | null>(null);
+  // One tab per running (or finished) script. Removing a tab unmounts its terminal, which
+  // stops the script's process tree.
+  let tabs = $state<Tab[]>([]);
+  let activeKey = $state<number | null>(null);
   let nextKey = 0;
 
-  function start(pkg: Package, script: string) {
+  function newTab(pkg: Package, script: string): Tab {
     nextKey += 1;
     const owner = pkg.name ?? (pkg.relativeDir || project.name);
-    run = { key: nextKey, packageDir: pkg.relativeDir, script, label: `${owner} › ${script}` };
+    return {
+      key: nextKey,
+      packageDir: pkg.relativeDir,
+      script,
+      label: `${owner} › ${script}`,
+      status: { kind: "starting" },
+    };
+  }
+
+  /** ▶: focus the script's tab if it is still running, otherwise run it in a fresh tab. */
+  function start(pkg: Package, script: string) {
+    const index = tabs.findIndex((t) => t.packageDir === pkg.relativeDir && t.script === script);
+    const existing = tabs[index];
+    if (existing && (existing.status.kind === "starting" || existing.status.kind === "running")) {
+      activeKey = existing.key;
+      return;
+    }
+    const tab = newTab(pkg, script);
+    if (existing) tabs[index] = tab;
+    else tabs.push(tab);
+    activeKey = tab.key;
+  }
+
+  function closeTab(key: number) {
+    const index = tabs.findIndex((t) => t.key === key);
+    if (index === -1) return;
+    tabs.splice(index, 1);
+    if (activeKey === key) activeKey = (tabs[index] ?? tabs[index - 1])?.key ?? null;
+  }
+
+  function setStatus(key: number, status: TerminalStatus) {
+    const tab = tabs.find((t) => t.key === key);
+    if (tab) tab.status = status;
   }
 </script>
 
@@ -49,11 +83,22 @@
     {/if}
     <ScriptList packages={project.packages} onRun={start} />
   </aside>
-  <main>
-    {#if run}
-      {#key run.key}
-        <TerminalPanel packageDir={run.packageDir} script={run.script} label={run.label} />
-      {/key}
+  <main class:with-tabs={tabs.length > 0}>
+    {#if tabs.length > 0}
+      <TabBar {tabs} {activeKey} onSelect={(key) => (activeKey = key)} onClose={closeTab} />
+      <div class="panels">
+        {#each tabs as tab (tab.key)}
+          <div class="slot" hidden={tab.key !== activeKey}>
+            <TerminalPanel
+              packageDir={tab.packageDir}
+              script={tab.script}
+              label={tab.label}
+              active={tab.key === activeKey}
+              onStatus={(status) => setStatus(tab.key, status)}
+            />
+          </div>
+        {/each}
+      </div>
     {:else}
       <p class="placeholder muted">Pick a script to run it here.</p>
     {/if}
@@ -117,6 +162,21 @@
   main {
     min-width: 0;
     min-height: 0;
+  }
+
+  main.with-tabs {
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  .panels,
+  .slot {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .slot[hidden] {
+    display: none;
   }
 
   .placeholder {
