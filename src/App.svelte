@@ -7,7 +7,14 @@
 </script>
 
 {#if project}
-  <ProjectView {project} onClose={() => (project = null)} />
+  <!-- A new project remounts the view, which closes (and stops) the old project's tabs. -->
+  {#key project.root}
+    <ProjectView
+      {project}
+      onClose={() => (project = null)}
+      onReplace={(opened) => (project = opened)}
+    />
+  {/key}
 {:else}
   <Home onOpen={(opened) => (project = opened)} />
 {/if}

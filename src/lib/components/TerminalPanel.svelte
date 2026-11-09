@@ -10,6 +10,7 @@
     stopTerminal,
     writeTerminal,
   } from "../ipc/terminal";
+  import { shortcutFor, shortcutLabel } from "../keyboard";
   import { statusText, statusTone, type TerminalStatus } from "../terminal/status";
 
   interface Props {
@@ -31,6 +32,16 @@
   let stop: () => Promise<void> = async () => {};
   let show: () => void = () => {};
 
+  /** Stops the script and its process tree (keyboard shortcut and ■ Stop). */
+  export function stopScript(): Promise<void> {
+    return stop();
+  }
+
+  /** Stops the script if needed and runs it again (keyboard shortcut and ↻ Restart). */
+  export function restartScript(): Promise<void> {
+    return status.kind === "starting" || status.kind === "stopping" ? Promise.resolve() : restart();
+  }
+
   $effect(() => onStatus(status));
   $effect(() => {
     if (active) show();
@@ -46,6 +57,8 @@
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
+    // App shortcuts are not sent to the program; they bubble up to the window handler.
+    terminal.attachCustomKeyEventHandler((event) => shortcutFor(event) === null);
     terminal.open(container);
     fit.fit();
 
@@ -152,11 +165,15 @@
       <button
         onclick={() => stop()}
         disabled={status.kind !== "running"}
-        title="Stop the script and every process it started"
+        title={`Stop the script and every process it started (${shortcutLabel("stop-tab")})`}
       >
         ■ Stop
       </button>
-      <button onclick={() => restart()} disabled={busy} title="Stop and run the script again">
+      <button
+        onclick={() => restart()}
+        disabled={busy}
+        title={`Stop and run the script again (${shortcutLabel("restart-tab")})`}
+      >
         ↻ Restart
       </button>
     </div>

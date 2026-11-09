@@ -2653,9 +2653,11 @@ dependencies = [
  "runbook-core",
  "runbook-process",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tempfile",
  "thiserror 2.0.21",
 ]
 

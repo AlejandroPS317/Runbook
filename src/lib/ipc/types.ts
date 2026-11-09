@@ -28,6 +28,14 @@ export interface Project {
   problems: Problem[];
 }
 
+/** Mirrors `RecentProject` in src-tauri/src/recent.rs. */
+export interface RecentProject {
+  path: string;
+  name: string;
+  /** Seconds since the Unix epoch. */
+  openedAt: number;
+}
+
 export interface ExitInfo {
   code: number;
   signal: string | null;
