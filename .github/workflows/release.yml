@@ -88,6 +88,9 @@ jobs:
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
+        # Artifacts keep their bundle sub-folders (deb/, appimage/, dmg/, msi/, nsis/), so the
+        # files are collected recursively.
         run: |
-          gh release create "$GITHUB_REF_NAME" installers/* \
+          mapfile -t files < <(find installers -type f)
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" --draft --generate-notes --title "Runbook $GITHUB_REF_NAME"
