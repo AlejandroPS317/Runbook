@@ -20,6 +20,9 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 M0 and M3 on macOS and Windows: builds, lints and tests (including PTY session tests) pass
 in CI; the app has not been run on a real machine yet.
 
+M6: recent projects, filter and shortcuts are done and tested on Linux; installers build on
+all three OSes (Release workflow). Pending per platform: installing on a clean machine.
+
 ## v1 scope
 
 In scope: open a folder, recent projects, discover `package.json` files, respect pnpm and
