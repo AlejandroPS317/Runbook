@@ -23,3 +23,4 @@ approaches that are expensive to reverse.
 | [0004](0004-yaml-parser.md)          | YAML parser (`yaml-rust2`)  | Accepted |
 | [0005](0005-windows-tree-termination.md) | Windows tree termination | Accepted |
 | [0006](0006-linux-woff-font-workaround.md) | Linux WOFF font workaround | Accepted |
+| [0007](0007-in-app-updates.md)       | In-app updates (Tauri updater) | Accepted |
