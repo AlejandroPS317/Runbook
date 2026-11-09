@@ -21,7 +21,8 @@ Implemented in `crates/runbook-process` (M3):
 - Spawn through `portable-pty` (`native_pty_system()`), which uses a Unix PTY on Linux and
   macOS and ConPTY on Windows (`session.rs`).
 - Build the command from argv: package manager binary, `run`, script name, extra args.
-  `src-tauri/src/terminal.rs` only accepts scripts that exist in the open project.
+  `src-tauri/src/terminal.rs` only accepts scripts that exist in the open project they
+  are run from.
 - Set `cwd` to the directory of the script's `package.json`.
 - Use the environment of the user's login shell (`env.rs`): Linux/macOS run
   `$SHELL -l -i -c` once and read `env -0` between markers, with a 10 s deadline and a
@@ -45,7 +46,10 @@ while the script's direct child is running: afterwards its pid may be reused, so
 is signalled (`AlreadyExited`). Dropping a session whose script still runs kills the tree
 immediately (`kill_tree_now`). The app keeps all sessions (one per tab) in a
 `SessionManager` (`manager.rs`); on app exit `SessionManager::stop_all` stops every session
-in parallel and waits for all of them (`tests/manager.rs`).
+in parallel and waits for all of them (`tests/manager.rs`). Closing one project uses
+`SessionManager::stop_many` with the sessions that project started: `src-tauri/src/projects.rs`
+attaches every session to its project, and a session that finishes spawning after its
+project closed is stopped at once.
 
 ### Linux and macOS (`tree/unix.rs`)
 

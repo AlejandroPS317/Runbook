@@ -172,13 +172,18 @@ Pick a folder with **Open folder…** (or a recent project), then press ▶ next
 to run it in its own terminal tab. A built binary also accepts the folder on the command
 line: `runbook /path/to/project`.
 
+Several projects can be open at once: **+** in the project bar (or Ctrl+O) adds another
+one. Switching projects keeps every script running; each project in the bar shows how many
+of its scripts are running and how many failed. Closing a project stops only its scripts.
+
 ### Keyboard shortcuts
 
-On macOS, use ⌘ instead of Ctrl (tab switching keeps Ctrl).
+On macOS, use ⌘ instead of Ctrl and instead of Alt (tab switching keeps Ctrl).
 
 | Shortcut                      | Action                                         |
 | ----------------------------- | ---------------------------------------------- |
-| Ctrl+O                        | Open a folder                                  |
+| Ctrl+O                        | Open a folder as another project               |
+| Alt+1 … Alt+9                 | Select the 1st … 9th open project              |
 | Ctrl+Shift+F                  | Filter scripts (Enter runs the first match)    |
 | Ctrl+Tab / Ctrl+Shift+Tab     | Next / previous tab (also Ctrl+PageDown/PageUp) |
 | Ctrl+Shift+K                  | Stop the active tab's script and its processes |
