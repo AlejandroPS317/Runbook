@@ -45,3 +45,13 @@ export interface TerminalSize {
   cols: number;
   rows: number;
 }
+
+/** Mirrors `UpdateInfo` in src-tauri/src/updates.rs. */
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  notes: string | null;
+}
+
+/** Mirrors `InstallEvent` in src-tauri/src/updates.rs. */
+export type InstallEvent = { kind: "progress"; percent: number } | { kind: "installing" };

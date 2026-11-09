@@ -1,8 +1,10 @@
 name: Release
 
-# Builds the installers on every OS. A `v*` tag also publishes them to a draft GitHub
-# release. Pull requests that touch packaging build the Linux installers only (Linux first,
-# ADR 0002): a cold Windows build adds ~10 minutes and macOS runners can queue for 15.
+# Builds the installers and signed update bundles on every OS. A `v*` tag also attaches
+# them, with the updater manifest `latest.json`, to a draft GitHub release; installed apps
+# see the update once the draft is published (ADR 0007). Pull requests that touch packaging
+# build the Linux installers only (Linux first, ADR 0002): a cold Windows build adds ~10
+# minutes and macOS runners can queue for 15.
 on:
   push:
     tags: ["v*"]
@@ -10,7 +12,9 @@ on:
     paths:
       - .github/workflows/release.yml
       - .github/actions/linux-deps/**
+      - .github/scripts/updater-manifest.mjs
       - src-tauri/tauri.conf.json
+      - src-tauri/tauri.updater.conf.json
       - src-tauri/icons/**
   workflow_dispatch:
 
@@ -62,19 +66,33 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Runs `pnpm build` first (beforeBuildCommand), then a release build and the bundles.
+      # `tauri.updater.conf.json` adds the update bundles and their `.sig` files, signed with
+      # the updater key; local builds leave it out so they need no key.
       - name: Build installers
-        run: pnpm tauri build --bundles ${{ matrix.bundles }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: >-
+          pnpm tauri build --bundles ${{ matrix.bundles }}
+          --config src-tauri/tauri.updater.conf.json
 
+      # Linux and Windows update with the installers themselves; macOS with `Runbook.app.tar.gz`.
       - uses: actions/upload-artifact@v7
         with:
           name: installers-${{ matrix.os }}
           if-no-files-found: error
           path: |
             target/release/bundle/deb/*.deb
+            target/release/bundle/deb/*.deb.sig
             target/release/bundle/appimage/*.AppImage
+            target/release/bundle/appimage/*.AppImage.sig
             target/release/bundle/dmg/*.dmg
+            target/release/bundle/macos/*.app.tar.gz
+            target/release/bundle/macos/*.app.tar.gz.sig
             target/release/bundle/msi/*.msi
+            target/release/bundle/msi/*.msi.sig
             target/release/bundle/nsis/*.exe
+            target/release/bundle/nsis/*.exe.sig
 
   publish:
     name: draft release
@@ -84,17 +102,31 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
       - uses: actions/download-artifact@v8
         with:
           path: installers
           merge-multiple: true
 
+      # Fails when a platform's update bundle or signature is missing, so a release never
+      # ships a manifest that some installs cannot use.
+      - name: Write updater manifest
+        run: node .github/scripts/updater-manifest.mjs installers "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" > latest.json
+
+      # The asset names (`latest.json`, bundle file names) are what installed apps download:
+      # renaming them breaks updates (ADR 0007).
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        # Artifacts keep their bundle sub-folders (deb/, appimage/, dmg/, msi/, nsis/), so the
-        # files are collected recursively.
+        # Artifacts keep their bundle sub-folders (deb/, appimage/, dmg/, macos/, msi/,
+        # nsis/), so the files are collected recursively. Signatures already live in
+        # `latest.json`.
         run: |
-          mapfile -t files < <(find installers -type f)
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+          mapfile -t files < <(find installers -type f ! -name '*.sig')
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" latest.json \
             --repo "$GITHUB_REPOSITORY" --draft --generate-notes --title "Runbook $GITHUB_REF_NAME"
