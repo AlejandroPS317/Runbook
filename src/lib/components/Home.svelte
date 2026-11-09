@@ -9,6 +9,7 @@
   } from "../ipc/project";
   import type { Project, RecentProject } from "../ipc/types";
   import { shortcutFor, shortcutLabel } from "../keyboard";
+  import iconUrl from "../../../assets/icon.svg";
 
   interface Props {
     onOpen: (project: Project) => void;
@@ -59,6 +60,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <main class="home">
+  <img class="logo" src={iconUrl} alt="" width="72" height="75" />
   <h1>Runbook</h1>
   <p class="muted">Run package.json scripts without opening an IDE.</p>
   <button
@@ -104,6 +106,10 @@
     gap: 0.75rem;
     height: 100%;
     text-align: center;
+  }
+
+  .logo {
+    margin-bottom: 0.25rem;
   }
 
   h1 {

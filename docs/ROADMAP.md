@@ -15,13 +15,13 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 | M3 One terminal        | ✅    | 🚧    | 🚧      |
 | M4 Stop and restart    | ✅    | ✅    | ✅      |
 | M5 Multiple tabs       | ✅    | ✅    | ✅      |
-| M6 Polish and packages | 🚧    | 🚧    | 🚧      |
+| M6 Polish and packages | ✅    | 🚧    | 🚧      |
 
 M0 and M3 on macOS and Windows: builds, lints and tests (including PTY session tests) pass
 in CI; the app has not been run on a real machine yet.
 
-M6: recent projects, filter and shortcuts are done and tested on Linux; installers build on
-all three OSes (Release workflow). Pending per platform: installing on a clean machine.
+M6: installers build on all three OSes (Release workflow); the Linux `.deb` was installed
+and run by the user. Pending on macOS and Windows: installing on a real machine.
 
 ## v1 scope
 
