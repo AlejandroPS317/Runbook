@@ -3,19 +3,28 @@
   import { openProject, pickFolder } from "../ipc/project";
   import type { Package, Project } from "../ipc/types";
   import { shortcutFor, shortcutLabel, type Action } from "../keyboard";
-  import type { TerminalStatus } from "../terminal/status";
+  import { summarize, type StatusSummary, type TerminalStatus } from "../terminal/status";
+  import ErrorLine from "./ErrorLine.svelte";
   import ScriptList from "./ScriptList.svelte";
   import TabBar, { type TabInfo } from "./TabBar.svelte";
   import TerminalPanel from "./TerminalPanel.svelte";
 
   interface Props {
     project: Project;
+    /**
+     * Whether this is the selected project. Hidden views stay mounted so their scripts keep
+     * running; they ignore keyboard shortcuts.
+     */
+    active: boolean;
     onClose: () => void;
-    /** Another folder was opened from this view (Ctrl+O). */
-    onReplace: (project: Project) => void;
+    /** Another folder was opened from this view (Ctrl+O); it is added, not swapped in. */
+    onOpen: (project: Project) => void;
+    /** Running and failed tab counts, for the project bar. */
+    onSummary: (summary: StatusSummary) => void;
   }
 
-  let { project, onClose, onReplace }: Props = $props();
+  let { project, active, onClose, onOpen, onSummary }: Props = $props();
+  let openError = $state<string | null>(null);
 
   let query = $state("");
   let filterInput: HTMLInputElement;
@@ -85,9 +94,17 @@
     if (next) activeKey = next.key;
   }
 
+  $effect(() => onSummary(summarize(tabs.map((t) => t.status))));
+
   async function openAnother() {
     const path = await pickFolder();
-    if (path) onReplace(await openProject(path));
+    if (!path) return;
+    openError = null;
+    try {
+      onOpen(await openProject(path));
+    } catch (err) {
+      openError = String(err);
+    }
   }
 
   function onFilterKeydown(event: KeyboardEvent) {
@@ -132,6 +149,7 @@
   }
 
   function onKeydown(event: KeyboardEvent) {
+    if (!active) return;
     const action = shortcutFor(event);
     if (action === null) return;
     event.preventDefault();
@@ -150,6 +168,9 @@
       </div>
       <button onclick={onClose} title="Close the project and stop its scripts">Close</button>
     </header>
+    {#if openError}
+      <ErrorLine message={openError} onDismiss={() => (openError = null)} />
+    {/if}
     {#if project.problems.length > 0}
       <details class="problems">
         <summary>{project.problems.length} problem{project.problems.length === 1 ? "" : "s"}</summary>
@@ -183,10 +204,11 @@
           <div class="slot" hidden={tab.key !== activeKey}>
             <TerminalPanel
               bind:this={panels[tab.key]}
+              projectRoot={project.root}
               packageDir={tab.packageDir}
               script={tab.script}
               label={tab.label}
-              active={tab.key === activeKey}
+              active={active && tab.key === activeKey}
               onStatus={(status) => setStatus(tab.key, status)}
             />
           </div>

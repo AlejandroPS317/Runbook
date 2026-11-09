@@ -4,6 +4,7 @@
 mod error;
 mod fonts;
 mod project;
+mod projects;
 mod recent;
 mod state;
 mod terminal;
@@ -40,6 +41,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             project::take_initial_path,
             project::open_project,
+            project::close_project,
             recent::recent_projects,
             recent::forget_recent_project,
             terminal::run_script,

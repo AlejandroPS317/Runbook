@@ -59,13 +59,27 @@ impl SessionManager {
     /// wait). The manager is empty afterwards.
     pub fn stop_all(&self, grace: Duration) -> Vec<StopOutcome> {
         let sessions: Vec<Arc<Session>> = lock(&self.sessions).drain().map(|(_, s)| s).collect();
-        let stoppers: Vec<_> = sessions
-            .into_iter()
-            .map(|session| thread::spawn(move || session.stop(grace)))
-            .collect();
-        stoppers
-            .into_iter()
-            .map(|stopper| stopper.join().unwrap_or(StopOutcome::Survivors(Vec::new())))
-            .collect()
+        stop_in_parallel(sessions, grace)
     }
+
+    /// Forgets the sessions in `ids` and stops them in parallel, like `stop_all`. Ids that are
+    /// not registered (already closed) are skipped. Returns one outcome per stopped session.
+    pub fn stop_many(&self, ids: &[SessionId], grace: Duration) -> Vec<StopOutcome> {
+        let sessions: Vec<Arc<Session>> = {
+            let mut map = lock(&self.sessions);
+            ids.iter().filter_map(|id| map.remove(id)).collect()
+        };
+        stop_in_parallel(sessions, grace)
+    }
+}
+
+fn stop_in_parallel(sessions: Vec<Arc<Session>>, grace: Duration) -> Vec<StopOutcome> {
+    let stoppers: Vec<_> = sessions
+        .into_iter()
+        .map(|session| thread::spawn(move || session.stop(grace)))
+        .collect();
+    stoppers
+        .into_iter()
+        .map(|stopper| stopper.join().unwrap_or(StopOutcome::Survivors(Vec::new())))
+        .collect()
 }

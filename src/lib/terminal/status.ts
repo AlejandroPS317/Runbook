@@ -29,6 +29,20 @@ export function statusText(status: TerminalStatus): string {
   }
 }
 
+/** How many of a project's tabs are running and how many failed (project bar preview). */
+export interface StatusSummary {
+  active: number;
+  failed: number;
+}
+
+export function summarize(statuses: TerminalStatus[]): StatusSummary {
+  const tones = statuses.map(statusTone);
+  return {
+    active: tones.filter((tone) => tone === "active").length,
+    failed: tones.filter((tone) => tone === "error").length,
+  };
+}
+
 /** Visual tone of a status: running, finished cleanly, or something went wrong. */
 export type StatusTone = "active" | "idle" | "error";
 

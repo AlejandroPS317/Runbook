@@ -16,6 +16,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 | M4 Stop and restart    | ✅    | ✅    | ✅      |
 | M5 Multiple tabs       | ✅    | ✅    | ✅      |
 | M6 Polish and packages | ✅    | 🚧    | 🚧      |
+| M7 Multiple projects   | 🚧    | 🚧    | 🚧      |
 
 M0 and M3 on macOS and Windows: builds, lints and tests (including PTY session tests) pass
 in CI; the app has not been run on a real machine yet.
@@ -115,6 +116,22 @@ manager, and finds no surviving processes.
 
 Accepted per platform when its installer installs and runs on a clean machine without
 extra setup.
+
+### M7 – Multiple projects
+
+Design: [`superpowers/specs/2026-11-09-multiple-projects-design.md`](superpowers/specs/2026-11-09-multiple-projects-design.md).
+
+- Several projects open in one window, selected from a project bar (Alt+1…9, ⌘1…9 on
+  macOS); each keeps its script list, filter and terminal tabs.
+- Switching projects never stops or clears a script; each project shows how many of its
+  scripts are running and how many failed.
+- Closing a project stops exactly its scripts (`SessionManager::stop_many`); quitting stops
+  all of them. Startup still shows the home screen (restoring projects is out of scope).
+
+Accepted per platform when the session manager tests (`stop_many` leaves the other
+sessions running) pass on that platform's CI runner, and on Linux three real projects run
+scripts side by side, closing one leaves no process of it behind and keeps the others
+running.
 
 ## Reference fixture
 

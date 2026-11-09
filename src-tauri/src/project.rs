@@ -3,10 +3,12 @@
 use std::path::PathBuf;
 
 use runbook_core::{Discovery, Package, PackageRole, discover};
+use runbook_process::DEFAULT_GRACE;
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use crate::error::CommandError;
+use crate::projects::root_key;
 use crate::recent::RecentProjects;
 use crate::state::{AppState, lock};
 
@@ -58,7 +60,8 @@ pub async fn take_initial_path(state: State<'_, AppState>) -> Result<Option<Stri
         .map(|path| path.display().to_string()))
 }
 
-/// Discovers the project at `path` and makes it the open project.
+/// Discovers the project at `path` and adds it to the open projects. Opening a project that
+/// is already open refreshes its scripts and keeps its running sessions.
 #[tauri::command]
 pub async fn open_project(
     path: PathBuf,
@@ -69,13 +72,28 @@ pub async fn open_project(
     let dto = to_dto(&discovery);
     // A list that cannot be saved (read-only data folder) must not block opening.
     let _ = recent.record(&discovery.root, &dto.name);
-    *lock(&state.project) = Some(discovery);
+    state.projects.open(discovery);
     Ok(dto)
+}
+
+/// Closes the project at `root` and stops every script it started, with its process tree.
+/// Resolves once they have all exited (at most the grace period plus a short kill wait).
+#[tauri::command]
+pub async fn close_project(root: String, app: AppHandle) -> Result<(), CommandError> {
+    let ids = app.state::<AppState>().projects.close(&root);
+    // Stopping blocks for up to the grace period, so it runs on the blocking pool.
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        app.state::<AppState>()
+            .sessions
+            .stop_many(&ids, DEFAULT_GRACE)
+    })
+    .await;
+    Ok(())
 }
 
 fn to_dto(discovery: &Discovery) -> ProjectDto {
     ProjectDto {
-        root: discovery.root.display().to_string(),
+        root: root_key(discovery),
         name: discovery
             .root
             .file_name()

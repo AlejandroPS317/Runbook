@@ -22,7 +22,15 @@ export function takeInitialPath(): Promise<string | null> {
   return invoke<string | null>("take_initial_path");
 }
 
-/** Discovers the project at `path` and makes it the open project. */
+/**
+ * Discovers the project at `path` and adds it to the open projects. Opening one that is
+ * already open returns the same `root` and keeps its running scripts.
+ */
 export function openProject(path: string): Promise<Project> {
   return invoke<Project>("open_project", { path });
+}
+
+/** Closes the project and stops every script it started, with its process tree. */
+export function closeProject(root: string): Promise<void> {
+  return invoke("close_project", { root });
 }
