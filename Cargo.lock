@@ -2812,7 +2812,7 @@ dependencies = [
 
 [[package]]
 name = "runbook"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "runbook-core",
  "runbook-process",
@@ -2828,7 +2828,7 @@ dependencies = [
 
 [[package]]
 name = "runbook-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "globset",
  "ignore",
@@ -2840,7 +2840,7 @@ dependencies = [
 
 [[package]]
 name = "runbook-process"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
  "portable-pty",
