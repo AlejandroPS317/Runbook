@@ -1,6 +1,6 @@
 //! Opening a project folder. Mirrors `src/lib/ipc/types.ts`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use runbook_core::{Discovery, Package, PackageRole, discover};
 use runbook_process::DEFAULT_GRACE;
@@ -8,7 +8,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 use crate::error::CommandError;
-use crate::projects::root_key;
+use crate::projects::{OpenProjects, root_key};
 use crate::recent::RecentProjects;
 use crate::state::{AppState, lock};
 
@@ -73,6 +73,27 @@ pub async fn open_project(
     // A list that cannot be saved (read-only data folder) must not block opening.
     let _ = recent.record(&discovery.root, &dto.name);
     state.projects.open(discovery);
+    Ok(dto)
+}
+
+/// Re-reads the scripts of an open project, for example after its branch changed outside
+/// Runbook. Keeps its running sessions and leaves the recent projects list alone.
+#[tauri::command]
+pub async fn refresh_project(
+    root: String,
+    state: State<'_, AppState>,
+) -> Result<ProjectDto, CommandError> {
+    let dir = state.projects.resolve_package(&root, "")?.cwd;
+    rediscover(&state.projects, &dir)
+}
+
+/// Discovers the project in `dir` again and replaces its snapshot, if it is still open.
+pub fn rediscover(projects: &OpenProjects, dir: &Path) -> Result<ProjectDto, CommandError> {
+    let discovery = discover(dir)?;
+    let dto = to_dto(&discovery);
+    if !projects.refresh(discovery) {
+        return Err(CommandError::ProjectNotOpen(dto.root));
+    }
     Ok(dto)
 }
 

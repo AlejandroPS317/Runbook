@@ -5,6 +5,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
 use runbook_process::{Environment, SessionManager, login_environment};
 
+use crate::git::GitBusy;
 use crate::projects::OpenProjects;
 
 #[derive(Default)]
@@ -14,6 +15,7 @@ pub struct AppState {
     pub projects: OpenProjects,
     /// Every terminal session of every project, one per tab.
     pub sessions: SessionManager,
+    pub git_busy: GitBusy,
     environment: OnceLock<Environment>,
 }
 

@@ -2815,6 +2815,7 @@ name = "runbook"
 version = "0.3.1"
 dependencies = [
  "runbook-core",
+ "runbook-git",
  "runbook-process",
  "serde",
  "serde_json",
