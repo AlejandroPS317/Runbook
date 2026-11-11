@@ -21,6 +21,9 @@ live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 Linux is the primary platform ([ADR 0002](docs/decisions/0002-linux-first.md)).
 Implement and accept every milestone on Linux first. Platform-independent code
 (discovery, parsing, workspaces) must pass CI on Linux, macOS and Windows from day one.
+To save Actions minutes, pull requests run CI on Linux only and skip documentation-only
+changes; `main` runs it on all three OSes after every merge, and a break there is fixed
+before new work.
 Platform-specific code (PTY, process termination, packaging) ships for Linux first and
 is tracked per platform in the roadmap.
 

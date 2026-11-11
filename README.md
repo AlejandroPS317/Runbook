@@ -103,8 +103,8 @@ Your recent projects list and settings live in the app data folder
 ### Building the installers
 
 The [Release workflow](.github/workflows/release.yml) builds every installer for each
-`v*` tag and attaches them to a draft GitHub release; pull requests that touch packaging
-build the Linux installers only. Locally, run
+`v*` tag and attaches them to a draft GitHub release; a manual run builds them without
+releasing, and pull requests build none. Locally, run
 `pnpm tauri build --bundles deb,appimage` (Linux), `app,dmg` (macOS) or `msi,nsis`
 (Windows). macOS builds are ad-hoc signed (`signingIdentity: "-"`), which Apple Silicon
 needs for downloaded apps; real signing and notarization need an Apple Developer account.

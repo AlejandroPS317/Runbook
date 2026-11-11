@@ -1,9 +1,18 @@
 name: CI
 
+# Documentation-only changes build nothing, to save Actions minutes.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - docs/**
+      - assets/**
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - docs/**
+      - assets/**
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -18,7 +27,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Pull requests check Linux only (Linux first, ADR 0002); main checks all three OSes
+        # after every merge. `strategy` cannot read `env`, so both lists are inline JSON.
+        os: >-
+          ${{ fromJSON(github.event_name == 'pull_request'
+            && '["ubuntu-latest"]'
+            || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -27,7 +41,8 @@ jobs:
       # Tauri on Linux renders through WebKitGTK; macOS and Windows use the system webview.
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
-        timeout-minutes: 20
+        # A warm package cache installs in about a minute; a stalled mirror fails fast.
+        timeout-minutes: 8
         uses: ./.github/actions/linux-deps
 
       - uses: dtolnay/rust-toolchain@stable
