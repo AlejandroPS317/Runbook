@@ -13,6 +13,12 @@ lists the scripts grouped by package, and runs each one in its own real terminal
 live output. Every tab can stop or restart its script, and stopping kills the whole
 process tree, so tools like `turbo`, `pnpm` and `vite` leave no orphan processes.
 
+When the project is a Git repository, the status bar shows its branch. Click it to switch
+to another local or remote branch, fetch, or pull (fast-forward only). Runbook runs your
+own `git` with your credentials and never asks for passwords: if Git needs credentials it
+cannot get on its own, it fails with Git's message. Uncommitted changes come along when
+you switch, after a warning; running scripts keep running.
+
 Built with Rust, [Tauri 2](https://tauri.app), Svelte 5 and xterm.js, so it uses the
 system webview instead of bundling a browser.
 
@@ -26,6 +32,7 @@ real machines yet. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for per-platform sta
 
 **Requirements:** Node.js with npm or pnpm, as you already use for your projects. Runbook
 runs your scripts with them; nvm, fnm, volta and corepack setups are found automatically.
+Git is optional: without it, the branch controls are simply hidden.
 
 Download the installer for your system from
 [Releases](https://github.com/AlejandroPS317/Runbook/releases) in the browser, or use the
