@@ -25,6 +25,16 @@
     return pkg.name ?? (pkg.relativeDir || "(root)");
   }
 
+  /** Splits `@scope/name` after the slash, so a wrapped name breaks there before anywhere else. */
+  function nameParts(name: string): string[] {
+    const slash = name.indexOf("/");
+    return slash === -1 ? [name] : [name.slice(0, slash + 1), name.slice(slash + 1)];
+  }
+
+  function badgeTitle(pkg: Package): string {
+    return pkg.role === "root" ? roleLabel(pkg.role) : `${roleLabel(pkg.role)}: ${pkg.relativeDir}`;
+  }
+
   function roleLabel(role: PackageRole): string {
     switch (role) {
       case "root":
@@ -58,9 +68,11 @@
           onclick={() => toggle(pkg)}
         >
           <span class="chevron" class:open></span>
-          <span class="name">{title(pkg)}</span>
+          <span class="name"
+            >{#each nameParts(title(pkg)) as part, i (i)}{#if i > 0}<wbr />{/if}{part}{/each}</span
+          >
         </button>
-        <span class="badge" class:root={pkg.role === "root"} title={roleLabel(pkg.role)}>
+        <span class="badge" class:root={pkg.role === "root"} title={badgeTitle(pkg)}>
           {pkg.role === "root" ? "ROOT" : pkg.relativeDir}
         </span>
         <button
@@ -138,11 +150,12 @@
     background: transparent;
   }
 
+  /* Sized by its content, so the name claims its width before the path badge gets any. */
   .toggle {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
     padding: 0.4rem 0.4rem;
     text-align: left;
@@ -166,21 +179,25 @@
     transform: rotate(45deg);
   }
 
+  /* Wraps instead of truncating: packages sharing a scope differ only in the suffix. */
   .name {
+    min-width: 0;
     font-family: var(--mono);
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
 
-  /* Shrinks faster than the package name, which matters more. */
+  /*
+   * Zero basis: it only fills the width the package name leaves, so it truncates (full path in
+   * its title) and the name wraps only when it does not fit on its own.
+   */
   .badge {
-    flex: 0 4 auto;
+    flex: 1 1 0;
     min-width: 0;
     font-family: var(--mono);
     font-size: 0.7rem;
     color: var(--text-faint);
+    text-align: right;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -188,6 +205,7 @@
 
   .badge.root {
     flex: 0 0 auto;
+    margin-left: auto;
     padding: 0.05rem 0.35rem;
     letter-spacing: 0.04em;
     color: var(--text-muted);
