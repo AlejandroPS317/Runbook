@@ -34,6 +34,13 @@ runs:
             exit 1
           fi
           echo "apt-get update attempt $attempt failed; retrying"
+          # Runners sometimes cannot resolve any *.ubuntu.com name (all of
+          # /etc/apt/apt-mirrors.txt) while other hosts work; kernel.org runs an official
+          # full mirror, including the amd64v3 variant and the security pocket.
+          if [ "$attempt" = 1 ] && [ -f /etc/apt/apt-mirrors.txt ]; then
+            echo "Falling back to mirrors.edge.kernel.org"
+            printf 'http://mirrors.edge.kernel.org/ubuntu/\tpriority:1\n' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
           sleep 10
         done
         for attempt in 1 2; do
