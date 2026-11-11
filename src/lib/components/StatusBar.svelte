@@ -1,11 +1,14 @@
 <script lang="ts">
   import type { Project } from "../ipc/types";
+  import BranchItem from "./BranchItem.svelte";
 
   interface Props {
     project: Project;
+    /** The project was read again after its Git branch moved. */
+    onProject: (project: Project) => void;
   }
 
-  let { project }: Props = $props();
+  let { project, onProject }: Props = $props();
   const scripts = $derived(project.packages.reduce((sum, p) => sum + p.scripts.length, 0));
   const problems = $derived(project.problems.length);
 
@@ -15,6 +18,7 @@
 </script>
 
 <footer>
+  <BranchItem root={project.root} {onProject} />
   <span class="dot" aria-hidden="true"></span>
   <span>{project.packageManager}</span>
   <span class="sep"></span>

@@ -2815,6 +2815,7 @@ name = "runbook"
 version = "0.3.1"
 dependencies = [
  "runbook-core",
+ "runbook-git",
  "runbook-process",
  "serde",
  "serde_json",
@@ -2836,6 +2837,15 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "yaml-rust2",
+]
+
+[[package]]
+name = "runbook-git"
+version = "0.3.1"
+dependencies = [
+ "libc",
+ "tempfile",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

@@ -1,0 +1,17 @@
+[package]
+name = "runbook-git"
+description = "Basic Git branch control for Runbook, through the user's git command"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror = "2.0.21"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[target."cfg(unix)".dependencies]
+libc = "0.2.191"

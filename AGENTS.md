@@ -37,13 +37,14 @@ src/lib/ipc/            The only place that calls Tauri `invoke`/channels; typed
 src-tauri/              Tauri shell: commands, app state, wiring. Thin, no business logic
 crates/runbook-core/    Discovery, package.json parsing, workspaces. Pure Rust, no Tauri
 crates/runbook-process/ PTY sessions and process-tree termination (from M3)
+crates/runbook-git/ Branch status, switch, fetch and pull through the user's git (M9)
 fixtures/               Sample projects and monorepos used by tests
 docs/ROADMAP.md         Milestones, acceptance criteria, per-platform status
 docs/decisions/         Architecture Decision Records (ADRs)
 ```
 
 Dependency direction: `src-tauri` → `crates/*`. Crates never depend on Tauri.
-`runbook-core` never depends on `runbook-process`. Logic that can be tested without a
+`runbook-core` never depends on `runbook-process`; `runbook-git` depends on neither. Logic that can be tested without a
 window belongs in a crate, not in `src-tauri`.
 
 ## Workflow

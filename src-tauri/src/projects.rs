@@ -55,6 +55,18 @@ impl OpenProjects {
         root
     }
 
+    /// Replaces the snapshot of a project that is still open, keeping its sessions. Returns
+    /// `false`, and changes nothing, when it was closed in the meantime.
+    pub fn refresh(&self, discovery: Discovery) -> bool {
+        match lock(&self.projects).get_mut(&root_key(&discovery)) {
+            Some(open) => {
+                open.discovery = discovery;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Forgets the project and returns the sessions it started, for the caller to stop.
     pub fn close(&self, root: &str) -> Vec<SessionId> {
         lock(&self.projects)
@@ -238,6 +250,19 @@ mod tests {
         let (projects, pnpm, _) = two_projects();
         projects.close(&pnpm);
         assert!(!projects.attach(&pnpm, 1));
+    }
+
+    #[test]
+    fn refreshing_never_reopens_a_closed_project() {
+        let (projects, pnpm, _) = two_projects();
+        projects.attach(&pnpm, 4);
+        assert!(projects.refresh(fixture("pnpm-turbo-monorepo")));
+        assert_eq!(projects.close(&pnpm), vec![4]);
+        assert!(!projects.refresh(fixture("pnpm-turbo-monorepo")));
+        assert!(matches!(
+            projects.resolve(&pnpm, "apps/web", "dev"),
+            Err(CommandError::ProjectNotOpen(_))
+        ));
     }
 
     #[test]

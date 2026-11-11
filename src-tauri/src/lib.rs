@@ -3,6 +3,7 @@
 
 mod error;
 mod fonts;
+mod git;
 mod project;
 mod projects;
 mod recent;
@@ -43,6 +44,12 @@ pub fn run() {
             project::take_initial_path,
             project::open_project,
             project::close_project,
+            project::refresh_project,
+            git::git_status,
+            git::git_branches,
+            git::git_switch,
+            git::git_fetch,
+            git::git_pull,
             recent::recent_projects,
             recent::forget_recent_project,
             terminal::run_script,

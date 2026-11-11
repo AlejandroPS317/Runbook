@@ -69,6 +69,22 @@ xterm.js reports bracketed paste mode, which bash 5.1+, zsh and fish turn on whe
 start reading a line. Shells without a line editor (sh, dash) never turn it on; for them
 the prompt counts as ready after 1 s without output, an inherently timed guess.
 
+## Git commands
+
+Implemented in `crates/runbook-git/src/command.rs` (M9, [ADR 0008](decisions/0008-git-through-the-cli.md)).
+Git runs as a plain child process with pipes, not in a PTY, with the login-shell
+environment, and must never wait for input:
+
+- argv only; stdin is null and `GIT_TERMINAL_PROMPT=0`, so HTTPS prompts fail at once.
+- Linux and macOS: `setsid` before exec, so Git has no controlling terminal and `ssh`
+  cannot prompt on the terminal Runbook was launched from. Windows: `CREATE_NO_WINDOW`;
+  credential helpers show their own windows.
+- Fetch and pull wait at most `NETWORK_TIMEOUT` (2 min), an inherently timed safety net.
+  On expiry the process group is killed (`SIGKILL` to the group on Linux and macOS,
+  `taskkill /T /F` on Windows). A helper thread owns the child until it is reaped, so its
+  pid cannot be reused while it may still be signalled.
+- Status reads run with `GIT_OPTIONAL_LOCKS=0` so they never take `index.lock`.
+
 ## Stopping, per platform
 
 Implemented in `crates/runbook-process` (M4): `Session::stop(grace)` in `stop.rs`, the

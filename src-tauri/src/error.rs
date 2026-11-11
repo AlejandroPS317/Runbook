@@ -8,6 +8,14 @@ pub enum CommandError {
     Discovery(#[from] runbook_core::DiscoveryError),
     #[error(transparent)]
     Session(#[from] runbook_process::SessionError),
+    #[error(transparent)]
+    Git(#[from] runbook_git::GitError),
+    #[error("{0} is not the top level of a Git repository")]
+    NotARepository(String),
+    #[error("another Git operation is still running in this project")]
+    GitBusy,
+    #[error("the Git operation was interrupted")]
+    GitInterrupted,
     #[error("project {0} is not open")]
     ProjectNotOpen(String),
     #[error("package \"{0}\" is not part of the project")]

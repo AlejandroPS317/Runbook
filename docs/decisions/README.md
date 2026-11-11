@@ -24,3 +24,4 @@ approaches that are expensive to reverse.
 | [0005](0005-windows-tree-termination.md) | Windows tree termination | Accepted |
 | [0006](0006-linux-woff-font-workaround.md) | Linux WOFF font workaround | Accepted |
 | [0007](0007-in-app-updates.md)       | In-app updates (Tauri updater) | Accepted |
+| [0008](0008-git-through-the-cli.md)  | Git through the `git` command | Accepted |
