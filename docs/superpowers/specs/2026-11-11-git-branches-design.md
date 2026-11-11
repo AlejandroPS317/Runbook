@@ -1,6 +1,6 @@
 # Basic Git branch control
 
-Status: design, approved. Proposed milestone: M9 (see
+Status: implemented; accepted on Linux. Proposed milestone: M9 (see
 [`ROADMAP.md`](../../ROADMAP.md)), shipped in v0.4.0.
 
 ## Intent
