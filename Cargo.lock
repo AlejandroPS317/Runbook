@@ -2841,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "runbook-git"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "libc",
  "tempfile",
