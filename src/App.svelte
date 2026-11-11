@@ -40,6 +40,12 @@
     select(project.root);
   }
 
+  /** New data for an open project (its branch moved); its view stays mounted. */
+  function replace(project: Project) {
+    const index = projects.findIndex((p) => p.root === project.root);
+    if (index !== -1) projects[index] = project;
+  }
+
   function select(root: string) {
     selectedRoot = root;
     homeRequested = false;
@@ -102,7 +108,7 @@
     {/if}
   </div>
   {#if current}
-    <StatusBar project={current} />
+    <StatusBar project={current} onProject={replace} />
   {/if}
 </div>
 

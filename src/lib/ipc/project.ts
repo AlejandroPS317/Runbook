@@ -30,6 +30,11 @@ export function openProject(path: string): Promise<Project> {
   return invoke<Project>("open_project", { path });
 }
 
+/** Reads an open project's scripts again (its branch changed); keeps its running scripts. */
+export function refreshProject(root: string): Promise<Project> {
+  return invoke<Project>("refresh_project", { root });
+}
+
 /** Closes the project and stops every script it started, with its process tree. */
 export function closeProject(root: string): Promise<void> {
   return invoke("close_project", { root });
