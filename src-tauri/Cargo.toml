@@ -15,9 +15,9 @@ name = "runbook_app"
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
-runbook-core = { version = "0.3.0", path = "../crates/runbook-core" }
-runbook-git = { version = "0.3.0", path = "../crates/runbook-git" }
-runbook-process = { version = "0.3.0", path = "../crates/runbook-process" }
+runbook-core = { version = "0.4.0", path = "../crates/runbook-core" }
+runbook-git = { version = "0.4.0", path = "../crates/runbook-git" }
+runbook-process = { version = "0.4.0", path = "../crates/runbook-process" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tauri = { version = "2.12", features = [] }
