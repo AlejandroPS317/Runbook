@@ -149,11 +149,12 @@ fn failure_message(output: &Output) -> String {
     }
 }
 
-#[cfg(test)]
+// Unix only: the fake exit statuses are built with `ExitStatusExt::from_raw`, whose
+// meaning differs per OS. `failure_message` itself has no OS-specific code.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     fn output(code: i32, stdout: &str, stderr: &str) -> Output {
         use std::os::unix::process::ExitStatusExt;
         Output {
@@ -163,7 +164,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
     #[test]
     fn failure_message_drops_hints_and_falls_back_to_stdout() {
         let diverged = "hint: Diverging branches can't be fast-forwarded\nhint: git merge --no-ff\nfatal: Not possible to fast-forward, aborting.\n";
