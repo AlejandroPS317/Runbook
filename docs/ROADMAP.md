@@ -16,8 +16,9 @@ Legend: ✅ done · 🚧 in progress · ⏳ not started · — not applicable
 | M4 Stop and restart    | ✅    | ✅    | ✅      |
 | M5 Multiple tabs       | ✅    | ✅    | ✅      |
 | M6 Polish and packages | ✅    | 🚧    | 🚧      |
-| M7 Multiple projects   | 🚧    | 🚧    | 🚧      |
+| M7 Multiple projects   | ✅    | 🚧    | 🚧      |
 | M8 Project terminal    | ✅    | ✅    | 🚧      |
+| M9 Git branches        | 🚧    | 🚧    | 🚧      |
 
 M0 and M3 on macOS and Windows: builds, lints and tests (including PTY session tests) pass
 in CI; the app has not been run on a real machine yet.
@@ -41,7 +42,9 @@ a real PTY terminal tab, stop and restart with full process-tree termination, cl
 shutdown, keyboard shortcuts, installers for Linux, macOS and Windows.
 
 Out of scope for v1: editing files, installing or updating dependencies, Git or pull
-requests, yarn, bun and Lerna, cloud sync, accounts, telemetry.
+requests, yarn, bun and Lerna, cloud sync, accounts, telemetry. Basic branch control
+(switch, fetch, pull) arrived after v1 in M9; commits, merges and pull requests remain out
+of scope.
 
 ## Milestones
 
@@ -150,6 +153,23 @@ running.
 Accepted per platform when the interactive-shell session tests pass on that platform's CI
 runner, and on Linux a real monorepo script runs both from ▶ and from a prefilled shell
 with extra flags, and closing shell tabs leaves no processes behind.
+
+### M9 – Git branches
+
+Design: [`superpowers/specs/2026-11-11-git-branches-design.md`](superpowers/specs/2026-11-11-git-branches-design.md).
+
+- The status bar shows the current branch of the selected project (with commits behind and
+  ahead of its upstream) when the project root is a Git repository's top level.
+- A branch menu switches to local or remote branches, fetches and pulls (fast-forward
+  only), by running the user's own `git`
+  ([ADR 0008](decisions/0008-git-through-the-cli.md)). Uncommitted changes travel with a
+  warning; Git's refusals are shown as is. Git never prompts and never hangs.
+- After a branch change the script list is re-discovered; running scripts are untouched.
+
+Accepted per platform when the `runbook-git` integration tests (temporary repositories with
+a local bare remote) pass on that platform's CI runner, and on Linux a real repository with
+a running `dev` script is switched, fetched and pulled from the menu as described in the
+design, with the script still running afterwards.
 
 ## Reference fixture
 
